@@ -7,25 +7,27 @@ use crate::float;
 #[allow(unused)]
 pub struct EqualChildGenerator {
     pub max_depth: usize,
+    pub compliance: Float,
 }
 
 impl BranchGenerator for EqualChildGenerator {
     fn make_children(&self, parent: ParentInfo, depth: usize) -> (ChildInfo, ChildInfo) {
-        let stem_radius = float::FRAC_1_SQRT_2 * parent.stem_radius;
+        let tube_radius = float::FRAC_1_SQRT_2 * parent.tube_radius;
         // Arbitrary. A bit less than 1/sqrt(2)
         let length = 0.66 * parent.length;
         // Arbitrary. Results in 1/3 of the circle between the children
         let base_angle = float::FRAC_PI_3;
-        // Arbitrary. Looks good
-        let sack_radius = Some(2.5 * stem_radius);
 
         let can_continue = depth + 1 < self.max_depth;
 
         let left = ChildInfo {
-            stem_radius,
+            tube_radius,
             length,
             angle_from_parent: -base_angle,
-            sack_radius: if can_continue { None } else { sack_radius },
+            compliance: match can_continue {
+                true => None,
+                false => Some(self.compliance),
+            },
         };
 
         let right = ChildInfo {

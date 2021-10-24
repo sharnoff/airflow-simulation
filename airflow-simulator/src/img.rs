@@ -1,6 +1,6 @@
 //! "Pretty" image generation to display branch trees
 
-use crate::{Branch, BranchId, BranchTree, Float, Point};
+use crate::{float, Branch, BranchId, BranchTree, Float, Point};
 
 use image::{ImageBuffer, Rgba};
 use imageproc::drawing::{self, Blend};
@@ -182,11 +182,11 @@ impl ImageConfig {
             tree: &'tree BranchTree,
             depth: usize,
         ) {
-            let branch = &tree.items[id.index()];
+            let branch = &tree[id];
 
             // Calculate this entry:
-            let angle = parent_angle + branch.angle_from_parent();
-            let length = branch.length();
+            let angle = parent_angle + branch.tube().angle_from_parent;
+            let length = branch.tube().length;
 
             let stem_end = Point {
                 x: stem_start.x + length * angle.cos(),
@@ -208,7 +208,7 @@ impl ImageConfig {
             buckets[depth].push((stem, branch));
 
             // Add the children if there are any
-            if let Branch::Stem(b) = branch {
+            if let Branch::Bifurcation(b) = branch {
                 // We use `stem_end` as the child's `stem_start` because that's how they're linked
                 // together.
                 add_to_bucket(buckets, b.left_child, stem_end, angle, tree, depth + 1);
@@ -242,7 +242,7 @@ impl ImageConfig {
         branch: &Branch,
     ) {
         // Draw the stem.
-        let radius = branch.stem_radius();
+        let radius = branch.tube().radius;
 
         // We can't actually draw the stem as a wide line - that isn't provided so instead we'll do
         // it with a rotated rectangle. This gets drawn as a polygon, so there unfortunately isn't
@@ -268,15 +268,19 @@ impl ImageConfig {
 
         // If this is a terminal branch, we also need to draw the sack. That one's pretty easy -
         // it's just a circle.
-        if let Branch::Tail(b) = branch {
+        if let Branch::Acinar(b) = branch {
+            // Volume of a sphere: V = 4/3 π r³, so:
+            // r = (V 3/4π)^(1/3)
+            let radius = (b.volume * 3.0 / (4.0 * float::PI)).powf(1.0 / 3.0);
+
             // Coordinates of the center of the sack
             let center_coords = ctx.point_to_coords(Point {
-                x: stem.end.x + b.sack_radius * stem.angle.cos(),
-                y: stem.end.y + b.sack_radius * stem.angle.sin(),
+                x: stem.end.x + radius * stem.angle.cos(),
+                y: stem.end.y + radius * stem.angle.sin(),
             });
 
-            let radius = (b.sack_radius * self.scale) as i32;
-            drawing::draw_filled_circle_mut(canvas, center_coords, radius, self.sack_color);
+            let radius_px = (radius * self.scale).round() as i32;
+            drawing::draw_filled_circle_mut(canvas, center_coords, radius_px, self.sack_color);
         }
     }
 }
@@ -303,8 +307,8 @@ impl DrawContext {
     /// Another piece is of note: when drawing, the origin is at the top-left corner. We want it at
     /// the bottom-left, so we have to flip the entire image.
     fn point_to_coords(&self, p: Point) -> (i32, i32) {
-        let x = ((p.x - self.bot_left.x) * self.scale) as i32;
-        let y = ((p.y - self.bot_left.y) * self.scale) as i32;
+        let x = ((p.x - self.bot_left.x) * self.scale).round() as i32;
+        let y = ((p.y - self.bot_left.y) * self.scale).round() as i32;
         (self.height as i32 - x, self.height as i32 - y)
     }
 }

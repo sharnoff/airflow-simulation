@@ -14,24 +14,6 @@ pub trait BranchGenerator {
     fn make_children(&self, parent: ParentInfo, depth: usize) -> (ChildInfo, ChildInfo);
 }
 
-/// Constructs the standard initial parent to use for generating [`BranchTree`]s
-///
-/// The "standard" initial parent always points downwards from the bottom of the usual 1x1 square
-/// from (0,0) to (1,1). The length and stem radius can be provided, because they are usually
-/// variable -- unlike the starting position & angle.
-///
-/// [`BranchTree`]: crate::BranchTree
-pub fn standard_init_parent(length: Float, stem_radius: Float) -> ParentInfo {
-    ParentInfo {
-        // The initial point is at the middle-top of the square from (0,0) to (1,1)
-        pos: Point { x: 0.5, y: 1.0 },
-        // Angle points downwards -- minus pi/2
-        total_angle: -crate::float::FRAC_PI_2,
-        length,
-        stem_radius,
-    }
-}
-
 /// The necessary information about a parent branch required in order to generate its children
 #[derive(Copy, Clone, Debug)]
 pub struct ParentInfo {
@@ -39,7 +21,7 @@ pub struct ParentInfo {
     pub pos: Point,
     /// The angle of the parent stem, as radians anti-clockwise from the positive X direction
     pub total_angle: Float,
-    pub stem_radius: Float,
+    pub tube_radius: Float,
     /// The full length of the parent stem
     pub length: Float,
 }
@@ -50,9 +32,9 @@ pub struct ChildInfo {
     /// The change in angle from the parent to this child
     pub angle_from_parent: Float,
     pub length: Float,
-    pub stem_radius: Float,
-    /// The radius of the sack at the end of the stem, iff this is a terminal branch
-    pub sack_radius: Option<Float>,
+    pub tube_radius: Float,
+    /// The value of `AcinarRegion.compliance` iff this is a terminal branch
+    pub compliance: Option<Float>,
 }
 
 impl ChildInfo {
@@ -61,7 +43,7 @@ impl ChildInfo {
     ///
     /// Returns `None` if the child is a terminal branch
     pub fn as_parent(&self, childs_parent: ParentInfo) -> Option<ParentInfo> {
-        if self.sack_radius.is_some() {
+        if self.compliance.is_some() {
             return None;
         }
 
@@ -78,7 +60,7 @@ impl ChildInfo {
                 y: childs_parent.pos.y + self.length * total_angle.sin(),
             },
             total_angle,
-            stem_radius: self.stem_radius,
+            tube_radius: self.tube_radius,
             length: self.length,
         })
     }

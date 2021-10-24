@@ -1,35 +1,100 @@
 //! Airflow simulator for my 3rd-year computer science project
 
+use std::ops::{Index, IndexMut};
+
 mod float;
 mod gen;
 mod img;
+mod sim;
 
 use float::Float;
-use gen::basic::MirroredTerminalChildGenerator;
+use gen::equal::EqualChildGenerator;
 use gen::BranchGenerator;
 use img::{rgb, rgba, ImageConfig};
 
-/// Unique identifier for a branch
+/// Unique identifier for a [`Branch`]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct BranchId(usize);
 
-/// A point in 2D space, used to represent one end of a branch
+/// A physical point in 2D space, used to represent one end of a branch
 ///
-/// We treat positive X as to the right and positive Y as up, generally with both values in the
-/// range (0, 1).
+/// The values are in units of millimeters
 ///
-/// Branch trees typically have their entrypoint at `(0.5, 1)`, with an initial angle directly
-/// downwards.
+/// We treat positive X as to the right and positive Y as up, with both values greater than zero.
+/// This distinction matters when we're rendering an image of the tree.
+///
+/// It's also worth noting that x and y values are typically (though not *necessarily*) greater
+/// than zero.
 #[derive(Copy, Clone, Debug)]
 pub struct Point {
     x: Float,
     y: Float,
 }
 
-#[derive(Clone, Debug)]
+/// An individual node in the tree of branches
+///
+/// Branches are tyically referred to by their [`BranchId`]. Both `Bifurcation` and `Acinar` share
+/// a `tube` field representing their bronchiole, which can be retrieved with the [`tube`] method.
+///
+/// [`stem`]: Self::stem
+#[derive(Copy, Clone, Debug)]
 enum Branch {
-    Stem(StemBranch),
-    Tail(TailBranch),
+    Bifurcation(Bifurcation),
+    Acinar(AcinarRegion),
+}
+
+/// The default value for `Tube.flow_rate` as we're generating a [`BranchTree`]
+const UNSET_FLOW_RATE: Float = 0.0;
+
+/// The default value for `Tube.end_pressure` as we're generating a [`BranchTree`]
+const UNSET_END_PRESSURE: Float = 0.0;
+
+#[derive(Copy, Clone, Debug)]
+struct Tube {
+    /// The ange of the tube, relative to its parent. Measured in radians, always within 0..2π
+    angle_from_parent: Float,
+
+    /// The radius of the tube, in mm
+    radius: Float,
+    /// The length of the tube, in mm
+    length: Float,
+    /// The velocity at which air is flowing out of the tube, towards the trachea (negative if
+    /// breathing in)
+    ///
+    /// Units of mm/s
+    flow_rate: Float,
+    /// The pressure at the distal end of the tube (i.e. away from the trachea), in MegaPascals
+    ///
+    /// We don't need to record the pressure at the other end because that's given by this one's
+    /// parent (or the root pressure, if this has no parent)
+    end_pressure: Float,
+}
+
+/// A `Node` that represents a branch with two children
+///
+/// The directions for "left" and "right" are as if the bifurcation is branching downwards -- the
+/// left child corresponds to a negative rotation from where it is attached, and the right child a
+/// positive one.
+#[derive(Copy, Clone, Debug)]
+struct Bifurcation {
+    /// Information about the bronchus/bronchiole going into this bifurcation
+    tube: Tube,
+
+    left_child: BranchId,
+    right_child: BranchId,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct AcinarRegion {
+    /// Information about the final bonchiole leading into this acinar region
+    tube: Tube,
+
+    /// The "compliance" of the region -- essentially how much it is willing to stretch
+    ///
+    /// Essentially volume / pressure; units of mm³/MPa
+    compliance: Float,
+    /// Total volume of the region; units of mm³/MPa
+    volume: Float,
 }
 
 impl BranchId {
@@ -39,48 +104,20 @@ impl BranchId {
     }
 }
 
-/// A branch with children
-#[derive(Clone, Debug)]
-struct StemBranch {
-    /// The change in angle from the parent branch
-    angle_from_parent: Float,
-    length: Float,
-    stem_radius: Float,
-    left_child: BranchId,
-    right_child: BranchId,
-}
-
-/// A branch that ends in a sack
-#[derive(Copy, Clone, Debug)]
-struct TailBranch {
-    angle_from_parent: Float,
-    length: Float,
-    stem_radius: Float,
-    sack_radius: Float,
-}
-
 impl Branch {
-    /// Returns the value of the `angle_from_parent` field of the branch
-    fn angle_from_parent(&self) -> Float {
+    /// Returns a reference to the shared `Tube` field of the branch
+    fn tube(&self) -> &Tube {
         match self {
-            Branch::Stem(s) => s.angle_from_parent,
-            Branch::Tail(t) => t.angle_from_parent,
+            Branch::Bifurcation(b) => &b.tube,
+            Branch::Acinar(b) => &b.tube,
         }
     }
 
-    /// Returns the value of the `length` field of the branch
-    fn length(&self) -> Float {
+    /// Returns a mutable reference to the shared `Tube` field of the branch
+    fn tube_mut(&mut self) -> &mut Tube {
         match self {
-            Branch::Stem(s) => s.length,
-            Branch::Tail(t) => t.length,
-        }
-    }
-
-    /// Returns the value of the `stem_radius` field of the branch
-    fn stem_radius(&self) -> Float {
-        match self {
-            Branch::Stem(s) => s.stem_radius,
-            Branch::Tail(t) => t.stem_radius,
+            Branch::Bifurcation(b) => &mut b.tube,
+            Branch::Acinar(b) => &mut b.tube,
         }
     }
 }
@@ -91,6 +128,20 @@ pub struct BranchTree {
     items: Vec<Branch>,
     root_id: BranchId,
     root_start_pos: Point,
+}
+
+impl Index<BranchId> for BranchTree {
+    type Output = Branch;
+
+    fn index(&self, id: BranchId) -> &Branch {
+        &self.items[id.index()]
+    }
+}
+
+impl IndexMut<BranchId> for BranchTree {
+    fn index_mut(&mut self, id: BranchId) -> &mut Branch {
+        &mut self.items[id.index()]
+    }
 }
 
 impl BranchTree {
@@ -115,21 +166,26 @@ impl BranchTree {
             // Helper closure to fill out a child. Makes a recursive call to `full_gen` and places
             // the child branch into `tree.items`
             let mut make_child = |info: ChildInfo| -> BranchId {
+                let tube = Tube {
+                    angle_from_parent: info.angle_from_parent,
+                    radius: info.tube_radius,
+                    length: info.length,
+                    flow_rate: 0.0,
+                    end_pressure: 0.0,
+                };
+
                 let child_branch = if let Some(as_parent) = info.as_parent(parent) {
                     let (child_left, child_right) = full_gen(tree, depth + 1, as_parent, gen);
-                    Branch::Stem(StemBranch {
-                        angle_from_parent: info.angle_from_parent,
-                        length: info.length,
-                        stem_radius: info.stem_radius,
+                    Branch::Bifurcation(Bifurcation {
+                        tube,
                         left_child: child_left,
                         right_child: child_right,
                     })
                 } else {
-                    Branch::Tail(TailBranch {
-                        angle_from_parent: info.angle_from_parent,
-                        length: info.length,
-                        stem_radius: info.stem_radius,
-                        sack_radius: info.sack_radius.unwrap(),
+                    Branch::Acinar(AcinarRegion {
+                        tube,
+                        volume: 0.0,
+                        compliance: info.compliance.unwrap(),
                     })
                 };
 
@@ -149,12 +205,16 @@ impl BranchTree {
         };
         let (left, right) = full_gen(&mut tree, 1, start, gen);
 
-        let root = Branch::Stem(StemBranch {
-            // Becuase it's the first branch, its full angle needs to be represented by the angle
-            // from its "parent" -- even though that doesn't exist.
-            angle_from_parent: start.total_angle,
-            length: start.length,
-            stem_radius: start.stem_radius,
+        let root = Branch::Bifurcation(Bifurcation {
+            tube: Tube {
+                // Becuase it's the first branch, its full angle needs to be represented by the
+                // angle from its "parent" -- even though that doesn't exist.
+                angle_from_parent: start.total_angle,
+                radius: start.tube_radius,
+                length: start.length,
+                flow_rate: UNSET_FLOW_RATE,
+                end_pressure: UNSET_END_PRESSURE,
+            },
             left_child: left,
             right_child: right,
         });
@@ -166,8 +226,17 @@ impl BranchTree {
     }
 }
 
+/// Atmospheric pressure at sea level, in MegaPascals
+const ATMOSPHERIC_PRESSURE: Float = 0.101_325;
+
 fn main() {
-    let start = gen::standard_init_parent(0.3, 0.05);
+    let start = gen::ParentInfo {
+        pos: Point { x: 0.5, y: 1.0 },
+        // Angle points downwards -- minus pi/2
+        total_angle: -float::FRAC_PI_2,
+        length: 0.3,
+        tube_radius: 0.05,
+    };
     let img_config = ImageConfig {
         centered_at: Point { x: 0.5, y: 0.5 },
         width: 550,
@@ -183,9 +252,19 @@ fn main() {
         sack_color: rgb(0xFF0000),
     };
 
-    // let generator = EqualChildGenerator { max_depth: 6 };
-    let generator = MirroredTerminalChildGenerator;
-    let tree = BranchTree::from_generator(start, &generator);
+    let generator = EqualChildGenerator {
+        max_depth: 6,
+        // 0.2L/cmH₂O is approximately 0.002 mm³/MPa
+        compliance: 0.002,
+    };
+    let mut tree = BranchTree::from_generator(start, &generator);
+    let sim_env = sim::SimulationEnvironment {
+        pleural_pressure: 0.0,
+        tracheal_pressure: ATMOSPHERIC_PRESSURE,
+    };
+
+    sim_env.reset(&mut tree);
+
     img_config
         .make_image(&tree)
         .save("branch-tree.png")
