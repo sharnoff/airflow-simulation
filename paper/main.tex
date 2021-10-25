@@ -1,0 +1,57 @@
+% main.tex
+%
+% This file groups together all of the chapters, which are stored as neighboring files in this
+% directory. It also establishes the general formatting of the paper, as specified here:
+%   https://www.cs.ox.ac.uk/teaching/courses/projects/handbook/Project%20Handbook%202021.pdf
+
+\documentclass[12pt]{article}
+\usepackage[paper=a4paper,margin=3cm]{geometry}
+\frenchspacing
+
+\usepackage[utf8]{inputenc}
+
+\begin{document}
+
+% Title page
+
+\begin{titlepage}
+\begin{center}
+    \Huge
+    \textbf{Title}
+
+    \vspace*{0.4cm}
+    \LARGE
+    Subtitle
+
+    \vspace{1.5cm}
+    \textbf{Max Sharnoff}
+
+    Trinity 2022 \\
+    candidate number \\
+    MCompSci Computer Science
+
+\end{center}
+\end{titlepage}
+
+% Blank page
+\newpage\ \addtocounter{page}{-1} \thispagestyle{empty}
+
+% Abstract
+\newpage
+{\Large \textbf{Abstract}}
+
+\vspace{0.5cm}
+
+lorem ipsum or something
+
+% Table of contents
+\newpage
+\tableofcontents
+
+\newpage
+\input{Ch1-introduction.tex}
+
+\newpage
+\input{Ch2-background.tex}
+
+\end{document}
