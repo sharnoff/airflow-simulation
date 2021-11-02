@@ -50,7 +50,7 @@ impl SimulationEnvironment {
             }
         }
 
-        let root_id = tree.root_id;
+        let root_id = tree.root_id();
         set_all(self, tree, root_id);
     }
 

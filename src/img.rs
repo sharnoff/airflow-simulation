@@ -218,8 +218,8 @@ impl ImageConfig {
 
         add_to_bucket(
             &mut depth_buckets,
-            tree.root_id,
-            tree.root_start_pos,
+            tree.root_id(),
+            tree.root_start_pos(),
             0.0,
             tree,
             0,
