@@ -2,19 +2,17 @@
 
 use std::ops::{Index, IndexMut};
 
+mod branch_id;
 mod float;
 mod gen;
 mod img;
 mod sim;
 
+use branch_id::BranchId;
 use float::Float;
 use gen::equal::EqualChildGenerator;
 use gen::BranchGenerator;
 use img::{rgb, rgba, ImageConfig};
-
-/// Unique identifier for a [`Branch`]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct BranchId(usize);
 
 /// A physical point in 2D space, used to represent one end of a branch
 ///
@@ -29,6 +27,13 @@ struct BranchId(usize);
 pub struct Point {
     x: Float,
     y: Float,
+}
+
+/// Marker for the type of a branch. Primarily used with [`BranchId`] methods.
+#[derive(Copy, Clone, Debug)]
+enum BranchKind {
+    Bifurcation = 0,
+    Acinar = 1,
 }
 
 /// An individual node in the tree of branches
@@ -97,13 +102,6 @@ struct AcinarRegion {
     volume: Float,
 }
 
-impl BranchId {
-    /// Returns the `BranchId` as a `usize` so that it can be used as an array index
-    fn index(&self) -> usize {
-        self.0 as usize
-    }
-}
-
 impl Branch {
     /// Returns a reference to the shared `Tube` field of the branch
     fn tube(&self) -> &Tube {
@@ -125,26 +123,53 @@ impl Branch {
 /// Wrapper around a `Vec<Branch>` to provide nicer access to the internals
 #[derive(Debug, Clone)]
 pub struct BranchTree {
-    items: Vec<Branch>,
+    bifurcations: Vec<Branch>,
+    acinars: Vec<Branch>,
     root_id: BranchId,
     root_start_pos: Point,
+    // The total number of terminal (Acinar) branches in the tree
+    //
+    // This is not necessarily items.len() / 2, because we might have unbalanced trees.
+    num_terminal: usize,
 }
 
 impl Index<BranchId> for BranchTree {
     type Output = Branch;
 
     fn index(&self, id: BranchId) -> &Branch {
-        &self.items[id.index()]
+        match id.deconstruct() {
+            (BranchKind::Bifurcation, idx) => &self.bifurcations[idx],
+            (BranchKind::Acinar, idx) => &self.acinars[idx],
+        }
     }
 }
 
 impl IndexMut<BranchId> for BranchTree {
     fn index_mut(&mut self, id: BranchId) -> &mut Branch {
-        &mut self.items[id.index()]
+        match id.deconstruct() {
+            (BranchKind::Bifurcation, idx) => &mut self.bifurcations[idx],
+            (BranchKind::Acinar, idx) => &mut self.acinars[idx],
+        }
     }
 }
 
 impl BranchTree {
+    /// Adds a bifurcation to the tree, returning the `BranchId` that now refers to it
+    fn push_bifurcation(&mut self, branch: Bifurcation) -> BranchId {
+        let idx = self.bifurcations.len();
+        self.bifurcations.push(Branch::Bifurcation(branch));
+
+        BranchId::new(BranchKind::Bifurcation, idx)
+    }
+
+    /// Adds an acinar region to the tree, returning the `BranchId` that now refers to it
+    fn push_acinar(&mut self, branch: AcinarRegion) -> BranchId {
+        let idx = self.acinars.len();
+        self.acinars.push(Branch::Acinar(branch));
+
+        BranchId::new(BranchKind::Acinar, idx)
+    }
+
     /// Creates a `BranchTree` from a random generator
     ///
     /// Whether the generator is seeded (and/or uses the same seed) is up to its own implementation
@@ -174,38 +199,41 @@ impl BranchTree {
                     end_pressure: 0.0,
                 };
 
-                let child_branch = if let Some(as_parent) = info.as_parent(parent) {
+                if let Some(as_parent) = info.as_parent(parent) {
                     let (child_left, child_right) = full_gen(tree, depth + 1, as_parent, gen);
-                    Branch::Bifurcation(Bifurcation {
+                    let branch = Bifurcation {
                         tube,
                         left_child: child_left,
                         right_child: child_right,
-                    })
+                    };
+
+                    tree.push_bifurcation(branch)
                 } else {
-                    Branch::Acinar(AcinarRegion {
+                    tree.num_terminal += 1;
+                    let branch = AcinarRegion {
                         tube,
                         volume: 0.0,
                         compliance: info.compliance.unwrap(),
-                    })
-                };
+                    };
 
-                let idx = tree.items.len();
-                tree.items.push(child_branch);
-                BranchId(idx)
+                    tree.push_acinar(branch)
+                }
             };
 
             (make_child(left), make_child(right))
         }
 
         let mut tree = BranchTree {
-            items: Vec::new(),
+            bifurcations: Vec::new(),
+            acinars: Vec::new(),
             // Set an initially invalid `BranchId`; we'll replace this later.
-            root_id: BranchId(usize::MAX),
+            root_id: BranchId::new(BranchKind::Bifurcation, usize::MAX),
             root_start_pos: start.pos,
+            num_terminal: 0,
         };
         let (left, right) = full_gen(&mut tree, 1, start, gen);
 
-        let root = Branch::Bifurcation(Bifurcation {
+        let root = Bifurcation {
             tube: Tube {
                 // Becuase it's the first branch, its full angle needs to be represented by the
                 // angle from its "parent" -- even though that doesn't exist.
@@ -217,11 +245,9 @@ impl BranchTree {
             },
             left_child: left,
             right_child: right,
-        });
+        };
 
-        tree.root_id = BranchId(tree.items.len());
-        tree.items.push(root);
-
+        tree.root_id = tree.push_bifurcation(root);
         tree
     }
 }
