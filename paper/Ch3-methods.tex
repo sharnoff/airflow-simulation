@@ -1,0 +1,100 @@
+% Ch3-methods.tex
+\section{Methods}
+
+This section is mostly some temporary filler at the moment, just serving as a place to jot down the
+formulae that we're using inside the simulation \textit{right now}.
+
+\subsection{Simultaneous Equations}
+
+There are essentially four simultaneous equations that we use to evaluate the state of the system at
+a given point in time. This section provides a summary and brief description of each, the first of
+which is the following:
+
+\begin{equation}
+    P_{\text{parent}(i)} - P_i = R(i) Q_i
+\end{equation}
+
+\noindent
+which specifies that the pressure differential between the distal end of branch $i$ and its parent
+must equal the pressure from the resistance from the flow through this branch $i$. For the ``root''
+branch, $P_{\text{parent}(i)}$ is the pressure at the trachea~--~typically atmospheric pressure.
+
+The resistance term $R(i)$ is defined as following function, as given by Pedley et al. (1970):
+
+\begin{equation*}
+    R(i) = \frac{2 \mu L_i c}{\pi r_i^4} \left( \frac{4 \rho |Q_i|}{\mu \pi L_i} \right)^{\frac{1}{2}}
+\end{equation*}
+
+The parenthesized term corresponds to the Reynold's number of the flow, scaled by the ratio of the
+diameter of the branch to its length $L_i$. $r_i$ is the radius of branch $i$, $\mu$ is the
+viscosity of the air, and $c = 1.85$ is a correction constant.
+
+The second equation ensures incompressibility; the flow through a bifurcation must equal the sum of
+the flow through its children:
+
+\begin{equation}
+    Q_i = \sum Q_{\text{child}}
+\end{equation}
+
+\noindent
+where each \textit{child} refers to any branch $c$ with $\text{parent}(c) = i$.
+
+The third equation maintains that the volume of an acinar region changes with the flow into or out
+of it for the given timestep:
+
+\begin{equation}
+    V_i^t = V_i^{t-1} + dt Q^t_i
+\end{equation}
+
+\noindent
+where $dt$ is the timestep size, $t$ refers to the current timestep, and $V_i$ is the volume of the
+acinar region of branch $i$.
+
+The final equation defines the elastic force of each acinar region, relating the pressure it exerts
+on its branch to the volume of the region itself and the pressure outside it:
+
+\begin{equation}
+    P_i = \frac{1}{C_i} V_i + P_{pl}(t)
+\end{equation}
+
+\noindent
+where $P_{pl}(t)$ is the pleural pressure (i.e. the ``pressure'' from the diaphragm, outside the
+acinar region) at the current time and $C_i$ is the \textit{compliance} of the acinar region of
+branch $i$. The pleural pressure changes over time to mimic human breathing patterns~--~hence why it
+is parameterised by $t$.
+
+
+\subsection{Units}
+
+It is worth making explict the units used for each value. After careful consideration, these were
+considered to provide the best spread of values with magnitude close to one, at which the accuracy
+of floating-point accuracy is maximized. These are:
+
+{
+    % Add a bit more spacing within the rows of the table
+    \renewcommand{\arraystretch}{1.6}
+    \begin{table}[h]
+    \centering
+    \begin{tabular}{ |c|c| }
+        \hline
+        Type of thing ??? & Units \\
+        \hline \hline
+        Distance & $\text{m}$ \\
+        \hline
+        Volume & $\text{m}^3$ \\
+        \hline
+        Flow velocity & $\frac{ \text{m}^3 }{ \text{s} }$ \\
+        \hline
+        Density & $\frac{ \text{kg} }{ \text{m}^3 }$ \\
+        \hline
+        Pressure & Pascals $\left( \frac{ \text{kg} }{ \text{m} \cdot \text{s}^2 } \right)$ \\
+        \hline
+        Compliance & $\frac{ \text{m}^3 }{ \text{Pascal} }$ $\left( \frac{ \text{m}^4 \cdot \text{s}^2 }{ \text{kg} } \right)$ \\
+        \hline
+        Resistance & $\frac{ \text{kg} }{ \text{m}^4 \cdot \text{s} }$ \\
+        \hline
+        Viscosity & $\frac{ \text{kg} }{ \text{m} \cdot \text{s} }$ \\
+        \hline
+    \end{tabular}
+    \end{table}
+}

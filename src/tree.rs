@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Wrapper around a `Vec<Branch>` to provide nicer access to the internals
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BranchTree {
     bifurcations: Vec<Branch>,
     acinars: Vec<Branch>,
@@ -39,7 +39,7 @@ impl IndexMut<BranchId> for BranchTree {
 
 impl BranchTree {
     /// Returns the [`BranchId`] of the root branch
-    pub(crate) fn root_id(&self) -> BranchId {
+    pub fn root_id(&self) -> BranchId {
         self.root_id
     }
 
@@ -47,6 +47,21 @@ impl BranchTree {
     /// the trachea)
     pub fn root_start_pos(&self) -> Point {
         self.root_start_pos
+    }
+
+    /// Returns the total number of branches stored within the tree
+    pub fn count_branches(&self) -> usize {
+        self.bifurcations.len() + self.acinars.len()
+    }
+
+    /// Returns the number of bifurcation branches in the tree
+    pub fn count_bifurcations(&self) -> usize {
+        self.bifurcations.len()
+    }
+
+    /// Returns the number of acinar branches in the tree
+    pub fn count_acinar_regions(&self) -> usize {
+        self.acinars.len()
     }
 
     /// Adds a bifurcation to the tree, returning the `BranchId` that now refers to it
@@ -120,15 +135,16 @@ impl BranchTree {
         let mut tree = BranchTree {
             bifurcations: Vec::new(),
             acinars: Vec::new(),
-            // Set an initially invalid `BranchId`; we'll replace this later.
-            root_id: BranchId::new(BranchKind::Bifurcation, usize::MAX),
+            // Set an initially invalid `BranchId`; we'll replace this later. we need to use
+            // isize::MAX because `BranchId`s aren't allowed to be greater than it
+            root_id: BranchId::new(BranchKind::Bifurcation, isize::MAX as usize),
             root_start_pos: start.pos,
         };
         let (left, right) = full_gen(&mut tree, 1, start, gen);
 
         let root = Bifurcation {
             tube: Tube {
-                // Becuase it's the first branch, its full angle needs to be represented by the
+                // Because it's the first branch, its full angle needs to be represented by the
                 // angle from its "parent" -- even though that doesn't exist.
                 angle_from_parent: start.total_angle,
                 radius: start.tube_radius,

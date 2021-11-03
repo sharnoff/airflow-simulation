@@ -17,7 +17,7 @@ use crate::BranchKind;
 /// [`Bifurcation`]: super::Bifurcation
 /// [`AcinarRegion`]: super::AcinarRegion
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct BranchId(usize);
+pub struct BranchId(usize);
 
 impl BranchId {
     /// Creates a new `BranchId` for the type of branch with given index

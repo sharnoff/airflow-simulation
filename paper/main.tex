@@ -3,12 +3,24 @@
 % This file groups together all of the chapters, which are stored as neighboring files in this
 % directory. It also establishes the general formatting of the paper, as specified here:
 %   https://www.cs.ox.ac.uk/teaching/courses/projects/handbook/Project%20Handbook%202021.pdf
+% And finally, it defines a number of commands that are used elsewhere.
 
 \documentclass[12pt]{article}
 \usepackage[paper=a4paper,margin=3cm]{geometry}
 \frenchspacing
 
 \usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+
+% Usage: \code{ <text> }
+%
+% Produces inline code formatting.
+\newcommand{\code}[1]{\texttt{#1}}
+
+% Usage: \breakpars
+%
+% Adds a little bit of space in between paragraphs.
+\newcommand{\breakpars}{\vspace{0.1in}}
 
 \begin{document}
 
@@ -53,5 +65,8 @@ lorem ipsum or something
 
 \newpage
 \input{Ch2-background.tex}
+
+\newpage
+\input{Ch3-methods.tex}
 
 \end{document}

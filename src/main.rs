@@ -1,5 +1,8 @@
 //! Airflow simulator for my 3rd-year computer science project
 
+use std::io::{self, Write};
+use std::process::Command;
+
 mod branch_id;
 mod float;
 mod gen;
@@ -7,30 +10,31 @@ mod img;
 mod sim;
 mod tree;
 
-use branch_id::BranchId;
+pub use branch_id::BranchId;
+
 use float::Float;
-use gen::equal::EqualChildGenerator;
+use gen::basic::MirroredTerminalChildGenerator;
 use img::{rgb, rgba, ImageConfig};
 use tree::BranchTree;
 
 /// A physical point in 2D space, used to represent one end of a branch
 ///
-/// The values are in units of millimeters
+/// The values are in units of meters.
 ///
 /// We treat positive X as to the right and positive Y as up, with both values greater than zero.
 /// This distinction matters when we're rendering an image of the tree.
 ///
 /// It's also worth noting that x and y values are typically (though not *necessarily*) greater
 /// than zero.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Point {
     x: Float,
     y: Float,
 }
 
 /// Marker for the type of a branch. Primarily used with [`BranchId`] methods.
-#[derive(Copy, Clone, Debug)]
-enum BranchKind {
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BranchKind {
     Bifurcation = 0,
     Acinar = 1,
 }
@@ -41,8 +45,8 @@ enum BranchKind {
 /// a `tube` field representing their bronchiole, which can be retrieved with the [`tube`] method.
 ///
 /// [`stem`]: Self::stem
-#[derive(Copy, Clone, Debug)]
-enum Branch {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Branch {
     Bifurcation(Bifurcation),
     Acinar(AcinarRegion),
 }
@@ -53,8 +57,8 @@ const UNSET_FLOW_RATE: Float = 0.0;
 /// The default value for `Tube.end_pressure` as we're generating a [`BranchTree`]
 const UNSET_END_PRESSURE: Float = 0.0;
 
-#[derive(Copy, Clone, Debug)]
-struct Tube {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Tube {
     /// The ange of the tube, relative to its parent. Measured in radians, always within 0..2π
     angle_from_parent: Float,
 
@@ -62,7 +66,7 @@ struct Tube {
     radius: Float,
     /// The length of the tube, in mm
     length: Float,
-    /// The velocity at which air is flowing out of the tube, towards the trachea (negative if
+    /// The velocity at which air is flowing into the tube, away from the trachea (positive if
     /// breathing in)
     ///
     /// Units of mm/s
@@ -79,8 +83,8 @@ struct Tube {
 /// The directions for "left" and "right" are as if the bifurcation is branching downwards -- the
 /// left child corresponds to a negative rotation from where it is attached, and the right child a
 /// positive one.
-#[derive(Copy, Clone, Debug)]
-struct Bifurcation {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Bifurcation {
     /// Information about the bronchus/bronchiole going into this bifurcation
     tube: Tube,
 
@@ -88,20 +92,28 @@ struct Bifurcation {
     right_child: BranchId,
 }
 
-#[derive(Copy, Clone, Debug)]
-struct AcinarRegion {
-    /// Information about the final bonchiole leading into this acinar region
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct AcinarRegion {
+    /// Information about the final bronchiole leading into this acinar region
     tube: Tube,
 
     /// The "compliance" of the region -- essentially how much it is willing to stretch
     ///
-    /// Essentially volume / pressure; units of mm³/MPa
+    /// Essentially volume / pressure; units of m³/Pa = m⁴s²/kg
     compliance: Float,
-    /// Total volume of the region; units of mm³/MPa
+    /// Total volume of the region; units of m³
     volume: Float,
 }
 
 impl Branch {
+    /// Returns the kind of branch represented
+    fn kind(&self) -> BranchKind {
+        match self {
+            Branch::Bifurcation(_) => BranchKind::Bifurcation,
+            Branch::Acinar(_) => BranchKind::Acinar,
+        }
+    }
+
     /// Returns a reference to the shared `Tube` field of the branch
     fn tube(&self) -> &Tube {
         match self {
@@ -119,7 +131,7 @@ impl Branch {
     }
 }
 
-/// Atmospheric pressure at sea level, in MegaPascals
+/// Atmospheric pressure at sea level, in Pascals
 const ATMOSPHERIC_PRESSURE: Float = 0.101_325;
 
 fn main() {
@@ -145,21 +157,69 @@ fn main() {
         sack_color: rgb(0xFF0000),
     };
 
-    let generator = EqualChildGenerator {
-        max_depth: 6,
+    let generator = MirroredTerminalChildGenerator {
         // 0.2L/cmH₂O is approximately 0.002 mm³/MPa
-        compliance: 0.002,
+        compliance: 0.02, // todo: reset
     };
     let mut tree = BranchTree::from_generator(start, &generator);
-    let sim_env = sim::SimulationEnvironment {
-        pleural_pressure: 0.0,
+    let mut sim_env = sim::SimulationEnvironment {
+        pleural_pressure: 0.05,
         tracheal_pressure: ATMOSPHERIC_PRESSURE,
+        air_viscosity: 1e-3, // TODO
+        air_density: 1.0,    // TODO
     };
 
     sim_env.reset(&mut tree);
 
+    // Make the image for the initial state
     img_config
         .make_image(&tree)
-        .save("branch-tree.png")
+        .save("branch-tree-00.png")
         .expect("failed to write the image");
+
+    const N_IMGS: usize = 100;
+    const TIMESTEP: Float = 0.01;
+
+    // Then, make all of the images that we need. We'll display the current "time" that we're
+    // evaluating in seconds below.
+    for i in 1..N_IMGS {
+        print!("\rtime: {:.2}s...", (i - 1) as Float * TIMESTEP);
+        io::stdout().flush().expect("failed to flush stdout");
+
+        // increase the pleural pressure; i.e. breathe out
+        //
+        // TODO: This should actually follow some kind of sinusoidal function. We'll do that later.
+        sim_env.pleural_pressure += 0.005;
+
+        if let Err(msg) = sim_env.do_tick(&mut tree, TIMESTEP) {
+            println!("\nfailed to do simulation tick: {}", msg);
+            return;
+        }
+
+        img_config
+            .make_image(&tree)
+            .save(format!("branch-tree-{:02}.png", i))
+            .expect("failed to write the image");
+    }
+
+    // And now, call 'convert' (from ImageMagick) to make a gif. There's probably some rust library
+    // we *could* use (and probably we *should* use it!), but convert is nice and simple :)
+    let mut cmd = Command::new("convert");
+    cmd
+        // We're generating an image each 0.01s, so that's what it should be in the gif. This CLI
+        // arg is in centiseconds.
+        .args(&["-delay", "1"])
+        .args(&["-loop", "0"]); // loop forever
+
+    // Add args for each image:
+    for i in 0..N_IMGS {
+        cmd.arg(format!("branch-tree-{:02}.png", i));
+    }
+
+    // And then the final output file:
+    cmd.arg(format!(
+        "branch-tree-{:.2}s.gif",
+        N_IMGS as Float * TIMESTEP
+    ));
+    cmd.spawn().expect("failed to run 'convert'");
 }
