@@ -1,7 +1,6 @@
 //! Airflow simulator for my 3rd-year computer science project
 
 use std::io::{self, Write};
-use std::process::Command;
 
 mod branch_id;
 mod float;
@@ -201,25 +200,4 @@ fn main() {
             .save(format!("branch-tree-{:02}.png", i))
             .expect("failed to write the image");
     }
-
-    // And now, call 'convert' (from ImageMagick) to make a gif. There's probably some rust library
-    // we *could* use (and probably we *should* use it!), but convert is nice and simple :)
-    let mut cmd = Command::new("convert");
-    cmd
-        // We're generating an image each 0.01s, so that's what it should be in the gif. This CLI
-        // arg is in centiseconds.
-        .args(&["-delay", "1"])
-        .args(&["-loop", "0"]); // loop forever
-
-    // Add args for each image:
-    for i in 0..N_IMGS {
-        cmd.arg(format!("branch-tree-{:02}.png", i));
-    }
-
-    // And then the final output file:
-    cmd.arg(format!(
-        "branch-tree-{:.2}s.gif",
-        N_IMGS as Float * TIMESTEP
-    ));
-    cmd.spawn().expect("failed to run 'convert'");
 }
