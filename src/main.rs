@@ -132,7 +132,7 @@ impl Branch {
 }
 
 /// Atmospheric pressure at sea level, in Pascals
-const ATMOSPHERIC_PRESSURE: Float = 0.101_325;
+const ATMOSPHERIC_PRESSURE: Float = 101_325.0;
 
 fn main() {
     let start = gen::ParentInfo {
@@ -158,15 +158,15 @@ fn main() {
     };
 
     let generator = MirroredTerminalChildGenerator {
-        // 0.2L/cmH₂O is approximately 0.002 mm³/MPa
-        compliance: 0.02, // todo: reset
+        // 0.2L/cmH₂O gives the value below, in m³/Pa:
+        compliance: 2.0394e-6,
     };
     let mut tree = BranchTree::from_generator(start, &generator);
     let mut sim_env = sim::SimulationEnvironment {
-        pleural_pressure: 0.05,
+        pleural_pressure: 500.0,
         tracheal_pressure: ATMOSPHERIC_PRESSURE,
-        air_viscosity: 1e-3, // TODO
-        air_density: 1.0,    // TODO
+        air_viscosity: 1.8e-5,
+        air_density: 1.225,
     };
 
     sim_env.reset(&mut tree);
@@ -189,7 +189,7 @@ fn main() {
         // increase the pleural pressure; i.e. breathe out
         //
         // TODO: This should actually follow some kind of sinusoidal function. We'll do that later.
-        sim_env.pleural_pressure += 0.005;
+        sim_env.pleural_pressure += 5.0;
 
         if let Err(msg) = sim_env.do_tick(&mut tree, TIMESTEP) {
             println!("\nfailed to do simulation tick: {}", msg);
