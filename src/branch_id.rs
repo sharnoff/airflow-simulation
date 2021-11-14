@@ -1,6 +1,7 @@
 //! Wrapper module for [`BranchId`]
 
 use crate::BranchKind;
+use std::fmt::{self, Debug, Formatter};
 
 /// Unique identifier for a [`Branch`]
 ///
@@ -16,7 +17,7 @@ use crate::BranchKind;
 /// [`Branch`]: super::Branch
 /// [`Bifurcation`]: super::Bifurcation
 /// [`AcinarRegion`]: super::AcinarRegion
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BranchId(usize);
 
 impl BranchId {
@@ -41,5 +42,14 @@ impl BranchId {
         };
 
         (kind, self.0 >> 1)
+    }
+}
+
+impl Debug for BranchId {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self.deconstruct() {
+            (BranchKind::Bifurcation, idx) => write!(f, "Bifurcation#{}", idx),
+            (BranchKind::Acinar, idx) => write!(f, "Acinar#{}", idx),
+        }
     }
 }

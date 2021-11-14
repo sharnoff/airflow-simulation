@@ -4,8 +4,8 @@ use std::ops::{Index, IndexMut};
 
 use crate::gen::{self, BranchGenerator};
 use crate::{
-    AcinarRegion, Bifurcation, Branch, BranchId, BranchKind, Point, Tube, UNSET_END_PRESSURE,
-    UNSET_FLOW_RATE,
+    AcinarRegion, Bifurcation, Branch, BranchId, BranchKind, Float, Point, Tube,
+    UNSET_END_PRESSURE, UNSET_FLOW_RATE,
 };
 
 /// Wrapper around a `Vec<Branch>` to provide nicer access to the internals
@@ -47,6 +47,11 @@ impl BranchTree {
     /// the trachea)
     pub fn root_start_pos(&self) -> Point {
         self.root_start_pos
+    }
+
+    /// Returns the current flow into the root branch
+    pub fn root_flow_in(&self) -> Float {
+        self[self.root_id].tube().flow_rate
     }
 
     /// Returns the total number of branches stored within the tree
@@ -158,5 +163,10 @@ impl BranchTree {
 
         tree.root_id = tree.push_bifurcation(root);
         tree
+    }
+
+    #[cfg(test)]
+    pub fn branches_mut(&mut self) -> impl '_ + Iterator<Item = &'_ mut Branch> {
+        self.bifurcations.iter_mut().chain(self.acinars.iter_mut())
     }
 }

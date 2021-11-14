@@ -11,6 +11,8 @@
 
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
+\usepackage{bm}
+\usepackage{hyperref}
 
 % Usage: \code{ <text> }
 %
@@ -21,6 +23,12 @@
 %
 % Adds a little bit of space in between paragraphs.
 \newcommand{\breakpars}{\vspace{0.1in}}
+
+% Usage \norm { math mode content }
+%
+% Outputs the norm / magnitude / absolute value of the contents - || contents ||
+% Taken from https://tex.stackexchange.com/a/107190
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
 
 \begin{document}
 

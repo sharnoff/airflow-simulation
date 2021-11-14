@@ -1,6 +1,6 @@
 //! The actual simulation
 
-use crate::{float, Branch, BranchId, BranchKind, BranchTree, Float, Tube};
+use crate::{float, Branch, BranchId, BranchKind, BranchTree, Float, Tube, ATMOSPHERIC_PRESSURE};
 use nalgebra::{Const, DMatrix, DVector, Dynamic, VecStorage};
 
 /// The environment of the simulation, at a given tick
@@ -95,29 +95,29 @@ impl SimulationEnvironment {
 
             // Standard vector newton's method is:
             //
-            //   dx = [J(x)]^-1 * f(x)
+            //   dx = -[J(x)]^-1 * f(x)
             //
             // which requires finding the inverse of the jacobian (possibly very large!). The
             // normal way to resolve this is by instead solving for dx with this system of
             // equations:
             //
-            //   J(x)dx = f(x)
+            //   J(x)(-dx) = f(x)
             //
-            // ... which is what we do below :)
+            // ... which is what we do below, preserving the negative sign around 'dx'.
 
             let jacobian = self.jacobian_at(tree, &state, timestep);
 
             // solve for dx:
-            let dx = jacobian
+            let minus_dx = jacobian
                 .lu()
                 .solve(&opt_func)
                 .ok_or("failed to solve system of equations for dx in newton's method")?;
 
-            state -= &dx;
+            state -= &minus_dx;
             opt_func = self.optimization_func_at(tree, &state, timestep);
 
             // And then we're done if the state is "close enough" to the optimal solution.
-            if dx.norm_squared() <= TOL && opt_func.norm_squared() <= TOL {
+            if minus_dx.norm_squared() <= TOL && opt_func.norm_squared() <= TOL {
                 break;
             }
         }
@@ -171,8 +171,10 @@ impl SimulationEnvironment {
             // (possible) root pressure differential:
             if id == root_id {
                 let this_resistance = self.flow_resistance(tree[id].tube(), this_flow);
+                // Convert `self.tracheal_pressure` from P to P̂:
+                let tracheal_pressure = self.tracheal_pressure - ATMOSPHERIC_PRESSURE;
                 let this_pressure_eqn =
-                    self.tracheal_pressure - this_pressure - this_resistance * this_flow;
+                    tracheal_pressure - this_pressure - this_resistance * this_flow;
 
                 output[tree.pressure_delta_eqn_index(id)] = this_pressure_eqn;
             }
@@ -210,7 +212,7 @@ impl SimulationEnvironment {
             let this_flow = state[tree.state_flow_index(id)];
 
             // Air conservation:
-            let old_volume = b.volume;
+            let old_volume = b.volume - v_atmospheric(b.compliance);
             let new_volume = state[tree.state_volume_index(id)];
             output[tree.air_conservation_eqn_index(id)] =
                 new_volume - timestep * this_flow - old_volume;
@@ -327,7 +329,7 @@ impl SimulationEnvironment {
             let acinar_p_eqn_idx = tree.acinar_pressure_eqn_index(id);
 
             jacobian[(acinar_p_eqn_idx, p_idx)] = 1.0;
-            jacobian[(acinar_p_eqn_idx, v_idx)] = 1.0 / b.compliance;
+            jacobian[(acinar_p_eqn_idx, v_idx)] = -1.0 / b.compliance;
         }
 
         jacobian
@@ -347,6 +349,7 @@ impl SimulationEnvironment {
         (2.0 * self.air_viscosity * tube.length * RESISTANCE_CORRECTION)
             / (float::PI * tube.radius.powi(4))
             * (reynolds * 2.0 * tube.radius / tube.length).sqrt()
+        // 1.0
     }
 
     /// Returns the derivative of the flow resistance TERM w.r.t. the flow rate
@@ -354,6 +357,7 @@ impl SimulationEnvironment {
     /// N.B. This is more than just what the `flow_resistance` method covers; we're producing the
     /// derivative of the full `flow_resistance(Q) * Q` term.
     fn flow_resistance_term_derivative(&self, tube: &Tube, flow_rate: Float) -> Float {
+        // 1.0
         1.5 * self.flow_resistance(tube, flow_rate)
     }
 }
@@ -361,6 +365,14 @@ impl SimulationEnvironment {
 // Correction factor that Foy mentions, taken from Pedley et al. 1970, to compensate for energy
 // dissipation in a branching network.
 const RESISTANCE_CORRECTION: Float = 1.85;
+
+/// Returns the volume than an acinar region *would have* under atmospheric pressure with no
+/// pleural pressure
+fn v_atmospheric(compliance: Float) -> Float {
+    // In general, V = compliance * (pressure - pleural pressure), so we get this simple formula
+    // because we're taking pleural pressure to be zero.
+    compliance * ATMOSPHERIC_PRESSURE
+}
 
 /// Produces the "state vector" for the tree -- i.e. a vector representation of all of the state
 /// values for the tree
@@ -396,7 +408,7 @@ fn state_vector(tree: &BranchTree) -> DVector<Float> {
         let q_base = tree.count_branches() + kind as usize * tree.count_bifurcations();
 
         let tube = branch.tube();
-        vec[p_base + index] = tube.end_pressure;
+        vec[p_base + index] = tube.end_pressure - ATMOSPHERIC_PRESSURE;
         vec[q_base + index] = tube.flow_rate;
 
         match branch {
@@ -406,7 +418,7 @@ fn state_vector(tree: &BranchTree) -> DVector<Float> {
             }
             Branch::Acinar(b) => {
                 let v_base = 2 * tree.count_branches();
-                vec[v_base + index] = b.volume;
+                vec[v_base + index] = b.volume - v_atmospheric(b.compliance);
             }
         }
     }
@@ -446,7 +458,7 @@ fn set_state_from_vector(tree: &mut BranchTree, vec: &DVector<Float>) {
         let q_base = n_branches + kind as usize * n_bifurcations;
 
         let tube = branch.tube_mut();
-        tube.end_pressure = vec[p_base + index];
+        tube.end_pressure = vec[p_base + index] + ATMOSPHERIC_PRESSURE;
         tube.flow_rate = vec[q_base + index];
         drop(tube);
 
@@ -457,7 +469,7 @@ fn set_state_from_vector(tree: &mut BranchTree, vec: &DVector<Float>) {
             }
             Branch::Acinar(b) => {
                 let v_base = 2 * n_branches;
-                b.volume = vec[v_base + index];
+                b.volume = vec[v_base + index] + v_atmospheric(b.compliance);
             }
         }
     }
@@ -580,13 +592,13 @@ mod tests {
     fn test_state_vector_idempotent() {
         let generator = EqualChildGenerator {
             max_depth: 3,
-            compliance: 0.5,
+            compliance: 2e-12,
         };
         let start = ParentInfo {
-            pos: Point { x: 0.5, y: 1.0 },
+            pos: Point { x: 0.01, y: 0.02 },
             total_angle: -float::FRAC_PI_2,
-            length: 0.3,
-            tube_radius: 0.05,
+            length: 0.01,
+            tube_radius: 0.001,
         };
 
         let mut tree = BranchTree::from_generator(start, &generator);

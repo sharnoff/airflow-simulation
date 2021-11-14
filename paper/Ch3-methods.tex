@@ -43,7 +43,7 @@ The third equation maintains that the volume of an acinar region changes with th
 of it for the given timestep:
 
 \begin{equation}
-    V_i^t = V_i^{t-1} + dt Q^t_i
+    V_i^t = V_i^{t-1} + dt Q_i^t
 \end{equation}
 
 \noindent
@@ -53,7 +53,7 @@ acinar region of branch $i$.
 The final equation defines the elastic force of each acinar region, relating the pressure it exerts
 on its branch to the volume of the region itself and the pressure outside it:
 
-\begin{equation}
+\begin{equation} \label{eq:acinar-pressure-volume-naive}
     P_i = \frac{1}{C_i} V_i + P_{pl}(t)
 \end{equation}
 
@@ -63,12 +63,30 @@ acinar region) at the current time and $C_i$ is the \textit{compliance} of the a
 branch $i$. The pleural pressure changes over time to mimic human breathing patterns~--~hence why it
 is parameterised by $t$.
 
+\breakpars
 
-\subsection{Units}
+At each timestep in the simulation, all of the simultaneous equations are grouped into a single
+optimization function $f(\bm{x}) = (\text{EQ}_1..., \text{EQ}_2..., \text{EQ}_3..., \text{EQ}_4)$,
+where each $\text{EQ}_i$ corresponds to the repeated instances of the $i$th equation above,
+normalized so the right-hand-side equals zero. Thus the solution exists at $\bm{0}$, and we use
+Euler's method to find an approximate solution, within $\norm{f(\bm{x})}^2 \le tol$ and
+$\norm{dx}^2 \le tol$, with a tolerance of $10^{-6}$.
+
+The input $\bm{x}$ is arranged with the values $(P..., Q..., V...)$ for each applicable
+branch~--~i.e. using $P$ and $Q$ from all branches and $V$ from each acinar region.
+
+\breakpars
+
+The above descriptions are \textit{nearly} correct~--~they would work, but there were a few
+adjustments made to the inputs and equations in practice for better numerical stability. These are
+discussed in the \hyperref[sec:units-and-numerical-stability]{next section}.
+
+\subsection{Units \& Numerical stability} \label{sec:units-and-numerical-stability}
 
 It is worth making explict the units used for each value. After careful consideration, these were
-considered to provide the best spread of values with magnitude close to one, at which the accuracy
-of floating-point accuracy is maximized. These are:
+considered to provide the best trade-off of familiar units and those with values of magnitude close
+to one, where floating-point accuracy is maximized. As we will see momentarily, the spread was still
+quite wide. The chosen units were:
 
 {
     % Add a bit more spacing within the rows of the table
@@ -98,3 +116,52 @@ of floating-point accuracy is maximized. These are:
     \end{tabular}
     \end{table}
 }
+
+One of the challenges with using these units is that some values are at a much greater magnitude
+than the others. For example, the pressure inside each branch is close to atmospheric pressure~--~or
+about $10^5$ Pascals, but pressure \textit{gradients} are typically much smaller.
+
+In practice, this can mean that if the $dx$ from our Euler step is too small, the pressure won't
+change; it doesn't have the necessary precision at that magnitude.
+
+\breakpars
+
+To ameliorate this issue, we define two new values: $\hat{P}$ and $\hat{V}$, which are given by:
+
+\begin{equation}
+    \hat{P} = P - P_{\text{atm}}
+\end{equation}
+
+\noindent
+where $P_{\text{atm}}$ is is atmospheric pressure; and:
+
+\begin{align}
+    \hat{V} & = V - V \vert_{P = P_{\text{atm}}} \\
+            & = C (\hat{P} - P_{pl})
+\end{align}
+
+\noindent
+Note that the definition of $\hat{V}$ would be the result of simply substituting $\hat{P}$ for $P$
+in \ref{eq:acinar-pressure-volume-naive}. Applying these substitutions gives the following
+equations, equivalent to their counterparts above:
+
+\begin{equation}
+    \hat{P}_{\text{parent}} - \hat{P}_i = R(i) Q_i
+\end{equation}
+
+\begin{equation}
+    Q_i = \sum Q_{\text{child}}
+\end{equation}
+
+\begin{equation}
+    \hat{V}_i^t = \hat{V}_i^{t-1} + dt Q_i^t
+\end{equation}
+
+\begin{equation}
+    \hat{P}_i = \frac{1}{C_i} \hat{V}_i + P_{pl}(t)
+\end{equation}
+
+Representing the pressure and volume by their \textit{offset} from values at atmospheric pressure
+causes them to cluster much closer to zero~--~the magnitude of the mean is significantly decreased,
+relative to the variance of the values. This of course greatly improves the accuracy of each Euler
+step.

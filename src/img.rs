@@ -58,6 +58,7 @@ pub type Color = Rgba<u8>;
 pub type PixelCount = u32;
 
 /// Configuration items for making an image
+#[derive(Debug)]
 pub struct ImageConfig {
     /// The center point of the region to use for the image
     pub centered_at: Point,
@@ -76,7 +77,7 @@ pub struct ImageConfig {
 
     /// Grid lines, given by their color, value, and pixel width on a particular axis
     ///
-    /// Lines that are provided earlier will be given precedence (i.e. drawn on top of)
+    /// Lines that are provided earlier will be given precedence (i.e. drawn on top of other lines)
     pub grid_lines: Vec<(Color, Axis, Float, PixelCount)>,
 
     /// Background color of the image
@@ -88,12 +89,14 @@ pub struct ImageConfig {
 }
 
 /// The axis on which to draw grid lines -- either X or Y
+#[derive(Copy, Clone, Debug)]
 pub enum Axis {
     X,
     Y,
 }
 
 /// Helper struct to record position of the endpoints of a branch's stem
+#[derive(Copy, Clone, Debug)]
 struct StemPos {
     /// The position of the end of the stem that connects to this branch's parent
     start: Point,
@@ -144,8 +147,8 @@ impl ImageConfig {
         //
         // The implementation of `Canvas` for `Blend` will appropriately use `image`'s blending.
         let mut buf = Blend(ImageBuffer::from_pixel(
-            self.height,
             self.width,
+            self.height,
             self.background,
         ));
 
@@ -158,9 +161,52 @@ impl ImageConfig {
             height: self.height,
         };
 
-        self.draw_full(&mut buf, tree, ctx);
+        self.draw_axes(&mut buf, ctx);
+        self.draw_full_tree(&mut buf, tree, ctx);
 
         buf.0
+    }
+
+    /// Draws the required axes onto the image
+    fn draw_axes(&self, canvas: &mut ImageCanvas, ctx: DrawContext) {
+        // Convenience function to process a pair into a Point
+        let map = |x, y| imageproc::point::Point { x, y };
+
+        // The iterator here is reversed so that earlier grid lines get drawn last (i.e. on top)
+        for &(color, axis, value, px_width) in self.grid_lines.iter().rev() {
+            let px_radius = (px_width / 2 + (if px_width % 2 == 1 { 1 } else { 0 })) as i32;
+
+            let points = match axis {
+                Axis::X => {
+                    let (img_coord, _) = ctx.point_to_coords(Point { x: value, y: 0.0 });
+                    if !(0..self.width as i32).contains(&img_coord) {
+                        continue;
+                    }
+
+                    [
+                        map(img_coord - px_radius, 0),
+                        map(img_coord + px_radius, 0),
+                        map(img_coord + px_radius, self.height as i32),
+                        map(img_coord - px_radius, self.height as i32),
+                    ]
+                }
+                Axis::Y => {
+                    let (_, img_coord) = ctx.point_to_coords(Point { x: 0.0, y: value });
+                    if !(0..self.height as i32).contains(&img_coord) {
+                        continue;
+                    }
+
+                    [
+                        map(0, img_coord - px_radius),
+                        map(0, img_coord + px_radius),
+                        map(self.width as i32, img_coord + px_radius),
+                        map(self.width as i32, img_coord - px_radius),
+                    ]
+                }
+            };
+
+            drawing::draw_polygon_mut(canvas, &points, color);
+        }
     }
 
     /// Draws the full tree to the canvas, using the existing configuration
@@ -168,7 +214,7 @@ impl ImageConfig {
     /// In order to get proper relative depths, we have to draw from the bottom of the tree
     /// upwards, so we have a pre-processing step where we sort every branch (including terminals)
     /// into buckets based on their depth.
-    fn draw_full(&self, canvas: &mut ImageCanvas, tree: &BranchTree, ctx: DrawContext) {
+    fn draw_full_tree(&self, canvas: &mut ImageCanvas, tree: &BranchTree, ctx: DrawContext) {
         type DepthBuckets<'tree> = Vec<Vec<(StemPos, &'tree Branch)>>;
 
         let mut depth_buckets: DepthBuckets = Vec::new();
@@ -280,11 +326,13 @@ impl ImageConfig {
             });
 
             let radius_px = (radius * self.scale).round() as i32;
+
             drawing::draw_filled_circle_mut(canvas, center_coords, radius_px, self.sack_color);
         }
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 struct DrawContext {
     /// The point corresponding to the bottom-left corner of the image
     bot_left: Point,
@@ -309,6 +357,6 @@ impl DrawContext {
     fn point_to_coords(&self, p: Point) -> (i32, i32) {
         let x = ((p.x - self.bot_left.x) * self.scale).round() as i32;
         let y = ((p.y - self.bot_left.y) * self.scale).round() as i32;
-        (self.height as i32 - x, self.height as i32 - y)
+        (x, self.height as i32 - y)
     }
 }
