@@ -152,6 +152,18 @@ impl Branch {
 /// Atmospheric pressure at sea level, in Pascals
 const ATMOSPHERIC_PRESSURE: Float = 101_325.0;
 
+/// We'll say that the total volume of the lungs is about 2 liters. It's not incredibly accurate,
+/// but close enough so that we're talking about measurements that probably correspond to a real
+/// person
+const TOTAL_LUNG_VOLUME: Float = 0.002;
+
+/// Length of the trachea, in meters. Average length is around 12cm
+const TRACHEA_LENGTH: Float = 0.12;
+
+/// Radius of the trachea, in meters. Seems like average diameter is around 1.5-2cm. Picked 2cm
+/// because it's a simpler number & this doesn't need to be perfectly accurate yet.
+const TRACHEA_RADIUS: Float = 0.01;
+
 fn main() {
     // Internally calls `AppSettings::run`
     cli::run()
@@ -209,42 +221,40 @@ impl AppSettings<'_> {
             cli::Model::Symmetric { depth } => *depth,
         };
 
-        // The length & radius of the terminal branches in a symmetric model. We keep these
-        // constant so that the system behaves ok - the viewport scales instead.
-        const MIN_LENGTH: Float = 0.01;
-        const MIN_RADIUS: Float = 0.001;
-
-        // Why this formula? don't worry about it - it works.
-        let root_length = MIN_LENGTH * Float::powi(1.5, depth as i32);
-        // root area is the sum of all terminal branch areas. So A = 2ᵈ * Aₜ; r = 2^(d/2) * rₜ
-        let root_radius = MIN_RADIUS * Float::powf(2.0, depth as Float / 2.0);
-
-        // Why this constant? Don't worry about it, it works.
-        //
-        // (It's derived from the sum: L + (2/3√2 * L) + (4/9 * L) + (8/27√2 * L) + ..., which is
-        // the vertical height of child branches from the EqualChildGenerator)
-        //
-        // The additional MIN_RADIUS is to account for the circles of the acinar regions
-        let total_height = root_length * 2.65 + (2.0 * MIN_RADIUS);
-
-        // The width is generally *slightly* larger than the height. 1.3 is a good-enough guss
-        let total_width = total_height * 1.3;
+        const TOTAL_HEIGHT: Float = TRACHEA_LENGTH * 2.7;
+        const TOTAL_WIDTH: Float = TOTAL_HEIGHT * 1.3;
 
         let start = gen::ParentInfo {
             pos: Point {
-                x: total_width / 2.0,
-                y: total_height,
+                x: TOTAL_WIDTH / 2.0,
+                y: TOTAL_HEIGHT,
             },
             // Angle points downwards -- minus pi/2
             total_angle: -float::FRAC_PI_2,
-            length: root_length,
-            tube_radius: root_radius,
+            length: TRACHEA_LENGTH,
+            tube_radius: TRACHEA_RADIUS,
         };
+
+        // Calculate the compliance so that it produces the "correct" total lung volume at
+        // atmospheric pressure
+        let compliance = {
+            let n_acinar = 1 << (depth + 1);
+            let volume_per = TOTAL_LUNG_VOLUME / n_acinar as Float;
+
+            // volume = compliance * (pressure - pleural pressure), therefore:
+            //
+            //   compliance = volume / (pressure - pleural pressure)
+            //
+            // because we're assuming pleural pressure is zero, we just get:
+            volume_per / ATMOSPHERIC_PRESSURE
+        };
+
+        println!("info: calculated compliance as {}", compliance);
 
         let generator = EqualChildGenerator {
             // 0.2L/cmH₂O gives 2.0394e-6, in m³/Pa. For some reason, that *really* doesn't play
             // nice here, so we're using a value that does. <- TODO/FIXME
-            compliance: 5e-12,
+            compliance,
             // +1 here because EqualChildGenerator counts depth from 1, and we want to count from
             // zero.
             max_depth: depth + 1,
@@ -254,8 +264,8 @@ impl AppSettings<'_> {
         // Realistically, this doesn't *quite* need to be a square, but the actual bounding width
         // is a bit more complicated and I don't really want to deal with that right now.
         let upper_right = Point {
-            x: total_width,
-            y: total_height,
+            x: TOTAL_WIDTH,
+            y: TOTAL_HEIGHT,
         };
 
         (tree, upper_right)
