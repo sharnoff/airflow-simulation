@@ -595,6 +595,7 @@ mod tests {
             compliance: 2e-12,
         };
         let start = ParentInfo {
+            id: 0,
             pos: Point { x: 0.01, y: 0.02 },
             total_angle: -float::FRAC_PI_2,
             length: 0.01,

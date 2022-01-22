@@ -85,12 +85,18 @@ impl BranchTree {
         BranchId::new(BranchKind::Acinar, idx)
     }
 
-    /// Creates a `BranchTree` from a random generator
+    /// Creates a `BranchTree` from a generator
     ///
     /// Whether the generator is seeded (and/or uses the same seed) is up to its own implementation
     /// details.
+    ///
+    /// ## Panics
+    ///
+    /// The value of `start.id` MUST be zero, and will panic if this is not the case.
     pub fn from_generator(start: gen::ParentInfo, gen: &impl BranchGenerator) -> Self {
         use gen::{ChildInfo, ParentInfo};
+
+        assert_eq!(start.id, 0);
 
         // Recursive helper function for generating the tree.
         //
@@ -99,13 +105,14 @@ impl BranchTree {
             tree: &mut BranchTree,
             depth: usize,
             parent: ParentInfo,
+            parent_id: &mut usize,
             gen: &impl BranchGenerator,
         ) -> (BranchId, BranchId) {
             let (left, right) = gen.make_children(parent, depth);
 
             // Helper closure to fill out a child. Makes a recursive call to `full_gen` and places
             // the child branch into `tree.items`
-            let mut make_child = |info: ChildInfo| -> BranchId {
+            let mut make_child = |info: ChildInfo, parent_id: &mut usize| -> BranchId {
                 let tube = Tube {
                     angle_from_parent: info.angle_from_parent,
                     radius: info.tube_radius,
@@ -114,8 +121,9 @@ impl BranchTree {
                     end_pressure: 0.0,
                 };
 
-                if let Some(as_parent) = info.as_parent(parent) {
-                    let (child_left, child_right) = full_gen(tree, depth + 1, as_parent, gen);
+                if let Some(as_parent) = info.as_parent(parent, parent_id) {
+                    let (child_left, child_right) =
+                        full_gen(tree, depth + 1, as_parent, parent_id, gen);
                     let branch = Bifurcation {
                         tube,
                         left_child: child_left,
@@ -134,7 +142,7 @@ impl BranchTree {
                 }
             };
 
-            (make_child(left), make_child(right))
+            (make_child(left, parent_id), make_child(right, parent_id))
         }
 
         let mut tree = BranchTree {
@@ -145,7 +153,8 @@ impl BranchTree {
             root_id: BranchId::new(BranchKind::Bifurcation, isize::MAX as usize),
             root_start_pos: start.pos,
         };
-        let (left, right) = full_gen(&mut tree, 1, start, gen);
+        let mut parent_id = start.id;
+        let (left, right) = full_gen(&mut tree, 1, start, &mut parent_id, gen);
 
         let root = Bifurcation {
             tube: Tube {

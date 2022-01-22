@@ -3,13 +3,9 @@
 //! The main entrypoint is actually in [`cli::run`] ('src/cli.rs'), which handles the various
 //! things that we may want to do -- that in turn calls the `run` method on [`AppSettings`]
 
-// The compile-test-debug cycle is done in release mode so that the program runs reasonably
-// quickly. To make output easier to read, don't emit warnings when we've temporarily disabled
-// something:
-#![cfg_attr(not(debug_assertions), allow(dead_code, unused_imports, unused_mut))]
-
 use std::fs::File;
 use std::io::{self, Write};
+use std::path::Path;
 use std::process::exit;
 
 mod branch_id;
@@ -17,14 +13,16 @@ mod cli;
 mod float;
 mod gen;
 mod img;
+mod point;
 mod sim;
 mod tree;
 
 pub use branch_id::BranchId;
 
 use float::Float;
-use gen::equal::EqualChildGenerator;
+use gen::{EqualChildGenerator, FromJsonGenerator};
 use img::{rgb, rgba, ImageConfig, PixelCount};
+use point::Point;
 use sim::SimulationEnvironment;
 use tree::BranchTree;
 
@@ -33,21 +31,6 @@ struct AppSettings<'cli> {
     timestep: Float,
     display_method: cli::DisplayMethod<'cli>,
     model: cli::Model,
-}
-
-/// A physical point in 2D space, used to represent one end of a branch
-///
-/// The values are in units of meters.
-///
-/// We treat positive X as to the right and positive Y as up, with both values greater than zero.
-/// This distinction matters when we're rendering an image of the tree.
-///
-/// It's also worth noting that x and y values are typically (though not *necessarily*) greater
-/// than zero.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct Point {
-    x: Float,
-    y: Float,
 }
 
 /// Marker for the type of a branch. Primarily used with [`BranchId`] methods.
@@ -174,7 +157,10 @@ type DisplayCallback = Box<dyn FnMut(&BranchTree, &SimulationEnvironment)>;
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
     fn run(&self) {
-        let (mut tree, bounds) = self.make_tree_and_bounds();
+        let (mut tree, bounds) = self.make_tree_and_bounds().unwrap_or_else(|e| {
+            eprintln!("{:?}", e.wrap_err("failed to construct model"));
+            exit(1)
+        });
 
         let mut sim_env = SimulationEnvironment {
             pleural_pressure: Self::pleural_pressure_at_time(0.0),
@@ -216,15 +202,25 @@ impl AppSettings<'_> {
     /// view into it
     ///
     /// It is assumed that the tree shouldn't display further down or left than (0,0).
-    fn make_tree_and_bounds(&self) -> (BranchTree, Point) {
-        let depth = match &self.model {
-            cli::Model::Symmetric { depth } => *depth,
-        };
+    fn make_tree_and_bounds(&self) -> eyre::Result<(BranchTree, Point)> {
+        match &self.model {
+            cli::Model::FromJson { file } => Self::make_json_tree(&file),
+            cli::Model::Symmetric { depth } => Ok(Self::make_symmetric_tree(*depth)),
+        }
+    }
 
+    fn make_json_tree(file: &Path) -> eyre::Result<(BranchTree, Point)> {
+        let gen = FromJsonGenerator::from_file(file)?;
+        let tree = BranchTree::from_generator(gen.start_parent_info(), &gen);
+        Ok((tree, gen.upper_right()))
+    }
+
+    fn make_symmetric_tree(depth: usize) -> (BranchTree, Point) {
         const TOTAL_HEIGHT: Float = TRACHEA_LENGTH * 2.7;
         const TOTAL_WIDTH: Float = TOTAL_HEIGHT * 1.3;
 
         let start = gen::ParentInfo {
+            id: 0,
             pos: Point {
                 x: TOTAL_WIDTH / 2.0,
                 y: TOTAL_HEIGHT,
@@ -404,5 +400,43 @@ impl AppSettings<'_> {
         let stretch = float::PI * 2.0 / PERIOD;
 
         amplitude + LO_PRESSURE - amplitude * (time * stretch + shift).cos()
+    }
+}
+
+#[derive(Clone)]
+struct BranchCtx {
+    fields: Vec<&'static str>,
+}
+
+impl BranchCtx {
+    fn root() -> Self {
+        BranchCtx {
+            fields: vec!["root"],
+        }
+    }
+
+    fn left(&self) -> Self {
+        let mut fields = self.fields.clone();
+        fields.push("left");
+        BranchCtx { fields }
+    }
+
+    fn right(&self) -> Self {
+        let mut fields = self.fields.clone();
+        fields.push("right");
+        BranchCtx { fields }
+    }
+}
+
+impl std::fmt::Display for BranchCtx {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.fields[0])?;
+
+        for field in &self.fields[1..] {
+            f.write_str(".")?;
+            f.write_str(field)?;
+        }
+
+        Ok(())
     }
 }

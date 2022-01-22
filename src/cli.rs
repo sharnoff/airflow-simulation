@@ -1,7 +1,9 @@
 //! CLI argument parsing for configuring what to do
 
 use crate::AppSettings;
+use std::ffi::OsString;
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
 
@@ -19,6 +21,8 @@ pub enum DisplayMethod<'a> {
 pub enum Model {
     /// `EqualChildGenerator` with the given depth
     Symmetric { depth: usize },
+    /// `FromJsonGenerator`, loading from the given file
+    FromJson { file: PathBuf },
 }
 
 /// Main entrypoint for the program
@@ -68,6 +72,13 @@ pub fn run() {
                 .expect("validator should ensure this is a valid usize");
 
             Model::Symmetric { depth }
+        }
+        "from-json" => {
+            let file: OsString = matches.value_of_os("input-file").unwrap().to_owned();
+
+            Model::FromJson {
+                file: PathBuf::from(file),
+            }
         }
         _ => unreachable!(),
     };
@@ -164,7 +175,7 @@ fn args_parser() -> clap::App<'static, 'static> {
                 .short("o")
                 .long("output")
                 .possible_values(&["csv", "CSV", "png", "PNG"])
-                .required_ifs(&[
+                .requires_ifs(&[
                     // 'file-pattern' is required for emitting PNGs
                     ("png", "file-pattern"),
                     ("PNG", "file-pattern"),
@@ -199,16 +210,17 @@ fn args_parser() -> clap::App<'static, 'static> {
             Arg::with_name("lung-model")
                 .short("m")
                 .long("model")
-                .possible_values(&["symmetric"])
-                .required_ifs(&[("symmetric", "depth")])
+                .possible_values(&["symmetric", "from-json"])
+                .requires_ifs(&[("symmetric", "depth"), ("from-json", "input-file")])
                 .required(true)
                 .takes_value(true)
-                .help("Set the model of the lungs to use: 'symmetric' is the only option")
+                .help("Set the model of the lungs to use: 'symmetric' or 'from-json'")
                 .long_help(concat!(
-                    "Set the model of the lungs to use: 'symmetric' is currently the only\n",
-                    "option.\n\n",
+                    "Set the model of the lungs to use: current options are 'symmetric' or\n",
+                    "'from-json'\n\n",
                     "'symmetric' requires the '--depth' parameter to be given, which determines\n",
-                    "what the terminal child depth should be.",
+                    "what the terminal child depth should be.\n\n",
+                    "'from-json' requires the '--input-file' parameter to be given",
                 )),
         )
         .arg(
@@ -217,7 +229,13 @@ fn args_parser() -> clap::App<'static, 'static> {
                 .value_name("DEPTH")
                 .help("Set the terminal child depth of the symmetric model")
                 .takes_value(true)
-                .required(true)
                 .validator(valid_as::<usize>(|d| d > 0, "depth must be > 0")),
+        )
+        .arg(
+            Arg::with_name("input-file")
+                .long("input-file")
+                .value_name("FILE")
+                .help("Sets the input file to load a JSON model from")
+                .takes_value(true),
         )
 }

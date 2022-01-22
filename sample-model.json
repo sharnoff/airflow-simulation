@@ -1,0 +1,23 @@
+{
+	"config": {
+		"branch_length_decrease": 0.75,
+		"branch_radius_decrease": 0.75,
+		"split_angle": 0.8,
+		"max_depth": 5
+	},
+	"root": {
+		"type": "manual",
+		"left_override": { "relative_angle": 0.7 },
+		"left": {
+			"type": "auto",
+			"child_angles": [1.2, 0.3, { "reset_after": 2 }],
+			"branch_length_decrease": [0.65, 0.9, { "reset_after": 1 }]
+		},
+		"right_override": { "relative_angle": 0.7, "relative_radius_abnormal": 0.3 },
+		"right": {
+			"type": "auto",
+			"child_angles": [0.3, 1.2, { "reset_after": 2 }],
+			"branch_length_decrease": [0.9, 0.65, { "reset_after": 1 }]
+		}
+	}
+}

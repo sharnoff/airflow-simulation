@@ -2,8 +2,11 @@
 
 use crate::{Float, Point};
 
-pub mod basic;
-pub mod equal;
+mod equal;
+mod from_json;
+
+pub use equal::EqualChildGenerator;
+pub use from_json::{FromJsonGenerator, ParsedConfig as JsonConfig};
 
 /// Helper trait to abstract away some of the parameterization around generating branches
 pub trait BranchGenerator {
@@ -17,6 +20,25 @@ pub trait BranchGenerator {
 /// The necessary information about a parent branch required in order to generate its children
 #[derive(Copy, Clone, Debug)]
 pub struct ParentInfo {
+    /// The "ID" of this parent branch
+    ///
+    /// ID numbers are assigned in a depth-first order, exploring left children first. For example:
+    ///
+    /// ```js
+    /// {
+    ///     id: 0,
+    ///     left: {
+    ///         id: 1,
+    ///         left: { id: 2 },
+    ///     },
+    ///     right: {
+    ///         id: 3,
+    ///         right: { id: 4 },
+    ///     }
+    /// }
+    /// ```
+    pub id: usize,
+
     /// The position of the end of the parent that the child will attach to
     pub pos: Point,
     /// The angle of the parent stem, as radians anti-clockwise from the positive X direction
@@ -42,14 +64,22 @@ impl ChildInfo {
     /// child
     ///
     /// Returns `None` if the child is a terminal branch
-    pub fn as_parent(&self, childs_parent: ParentInfo) -> Option<ParentInfo> {
+    pub fn as_parent(
+        &self,
+        childs_parent: ParentInfo,
+        parent_id: &mut usize,
+    ) -> Option<ParentInfo> {
         if self.compliance.is_some() {
             return None;
         }
 
         let total_angle = childs_parent.total_angle + self.angle_from_parent;
 
+        let id = *parent_id + 1;
+        *parent_id = id;
+
         Some(ParentInfo {
+            id,
             pos: Point {
                 // Total angles relative to the coordinate plane are standard here, so the trig is
                 // recognizable.
