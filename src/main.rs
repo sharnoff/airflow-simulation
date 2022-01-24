@@ -152,7 +152,8 @@ fn main() {
     cli::run()
 }
 
-type DisplayCallback = Box<dyn FnMut(&BranchTree, &SimulationEnvironment)>;
+// Callback to output the state of the tree, given the current time & the state of the tree.
+type DisplayCallback = Box<dyn FnMut(Float, &BranchTree, &SimulationEnvironment)>;
 
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
@@ -176,7 +177,7 @@ impl AppSettings<'_> {
             cli::DisplayMethod::Png { file_pattern } => self.png_callback(bounds, file_pattern),
         };
 
-        callback(&tree, &sim_env);
+        callback(0.0, &tree, &sim_env);
 
         for i in 1.. {
             // Better to recompute than += timestep because the latter is less precise.
@@ -194,7 +195,7 @@ impl AppSettings<'_> {
                 return;
             }
 
-            callback(&tree, &sim_env);
+            callback(current_time, &tree, &sim_env);
         }
     }
 
@@ -284,36 +285,32 @@ impl AppSettings<'_> {
         writeln!(writer, "time,pleural pressure,flow out,total volume")
             .expect("failed to write CSV header");
 
-        let mut i = 0_usize;
-        let timestep = self.timestep; // borrow checker gets mad if this isn't out here :(
-        Box::new(move |tree: &BranchTree, sim_env: &SimulationEnvironment| {
-            let time = i as Float * timestep;
+        Box::new(
+            move |time: Float, tree: &BranchTree, sim_env: &SimulationEnvironment| {
+                // Flow out, in mm³/s:
+                let flow_out = -tree.root_flow_in() * 1e9;
 
-            // Flow out, in mm³/s:
-            let flow_out = -tree.root_flow_in() * 1e9;
-
-            // Total volume, in m³/s
-            let mut total_volume = 0.0;
-            for i in 0..tree.count_acinar_regions() {
-                match &tree[BranchId::new(BranchKind::Acinar, i)] {
-                    Branch::Acinar(a) => total_volume += a.volume,
-                    _ => unreachable!(),
+                // Total volume, in m³/s
+                let mut total_volume = 0.0;
+                for i in 0..tree.count_acinar_regions() {
+                    match &tree[BranchId::new(BranchKind::Acinar, i)] {
+                        Branch::Acinar(a) => total_volume += a.volume,
+                        _ => unreachable!(),
+                    }
                 }
-            }
 
-            // And now in mm³/s
-            total_volume *= 1e9;
+                // And now in mm³/s
+                total_volume *= 1e9;
 
-            writeln!(
-                writer,
-                "{},{},{},{}",
-                time, sim_env.pleural_pressure, flow_out, total_volume
-            )
-            .expect("failed to write CSV line");
-            writer.flush().expect("Failed to flush CSV line");
-
-            i += 1;
-        })
+                writeln!(
+                    writer,
+                    "{},{},{},{}",
+                    time, sim_env.pleural_pressure, flow_out, total_volume
+                )
+                .expect("failed to write CSV line");
+                writer.flush().expect("Failed to flush CSV line");
+            },
+        )
     }
 
     fn png_callback(&self, bounds: Point, file_pattern: &str) -> DisplayCallback {
@@ -362,14 +359,16 @@ impl AppSettings<'_> {
         // Need to clone `file_pattern` out here so that the closure can be 'static.
         let pat = file_pattern.to_owned();
 
-        Box::new(move |tree: &BranchTree, _: &SimulationEnvironment| {
-            img_config
-                .make_image(tree)
-                .save(cli::substitute_png_file_pattern(&pat, n, max_imgs))
-                .expect("failed to write an image");
+        Box::new(
+            move |_time: Float, tree: &BranchTree, _: &SimulationEnvironment| {
+                img_config
+                    .make_image(tree)
+                    .save(cli::substitute_png_file_pattern(&pat, n, max_imgs))
+                    .expect("failed to write an image");
 
-            n += 1;
-        })
+                n += 1;
+            },
+        )
     }
 
     /// Returns the pleural pressure (i.e. the "pressure" exerted on the lungs by the diaphragm) at
