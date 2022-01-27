@@ -23,7 +23,7 @@ pub use branch_id::BranchId;
 
 use float::Float;
 use gen::{EqualChildGenerator, FromJsonGenerator};
-use img::{rgb, rgba, ImageConfig, PixelCount};
+use img::{rgb, ImageConfig, PixelCount};
 use point::Point;
 use sim::SimulationEnvironment;
 use tree::BranchTree;
@@ -421,7 +421,7 @@ impl AppSettings<'_> {
                 (rgb(0x000000), img::Axis::X, 0.0, 5),
                 (rgb(0x000000), img::Axis::Y, 0.0, 5),
             ],
-            background: rgba(0x00000000),
+            background: rgb(0x000000),
             stem_color: rgb(0xFFFFFF),
             sack_color: rgb(0xFF0000),
         };
