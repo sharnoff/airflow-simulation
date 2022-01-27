@@ -384,7 +384,10 @@ impl AppSettings<'_> {
                 let mut line = format!("{},{}", time, sim_env.pleural_pressure);
                 for v in flow_and_volume_values {
                     line.push(',');
-                    write!(line, "{}", v).unwrap();
+                    // We ensure there's at least two decimal places because pasting into Google
+                    // Sheets will sometimes get messed up if there's no decimal place in the
+                    // number.
+                    write!(line, "{:.2}", v).unwrap();
                 }
 
                 writeln!(writer, "{}", line).expect("failed to write CSV line");
