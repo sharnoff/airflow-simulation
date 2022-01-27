@@ -3,8 +3,10 @@
 //! The main entrypoint is actually in [`cli::run`] ('src/cli.rs'), which handles the various
 //! things that we may want to do -- that in turn calls the `run` method on [`AppSettings`]
 
+use std::fmt::{self, Display, Formatter, Write as _};
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Write as _};
+use std::iter;
 use std::path::Path;
 use std::process::exit;
 
@@ -31,6 +33,36 @@ struct AppSettings<'cli> {
     timestep: Float,
     display_method: cli::DisplayMethod<'cli>,
     model: cli::Model,
+}
+
+/// The "direction" of a child node -- it's either the left or right child
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum ChildDirection {
+    Left,
+    Right,
+}
+
+/// A path through the tree to a node (subtree)
+pub type TreePath = Vec<ChildDirection>;
+
+impl Display for ChildDirection {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            ChildDirection::Left => f.write_str(".left"),
+            ChildDirection::Right => f.write_str(".right"),
+        }
+    }
+}
+
+struct DisplayTreePath<'p>(&'p [ChildDirection]);
+
+impl Display for DisplayTreePath<'_> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        for c in self.0 {
+            c.fmt(f)?;
+        }
+        Ok(())
+    }
 }
 
 /// Marker for the type of a branch. Primarily used with [`BranchId`] methods.
@@ -153,7 +185,7 @@ fn main() {
 }
 
 // Callback to output the state of the tree, given the current time & the state of the tree.
-type DisplayCallback = Box<dyn FnMut(Float, &BranchTree, &SimulationEnvironment)>;
+type DisplayCallback<'a> = Box<dyn 'a + FnMut(Float, &BranchTree, &SimulationEnvironment)>;
 
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
@@ -173,7 +205,7 @@ impl AppSettings<'_> {
         sim_env.reset(&mut tree);
 
         let mut callback = match &self.display_method {
-            cli::DisplayMethod::Csv { file } => self.csv_callback(*file),
+            cli::DisplayMethod::Csv { file, add_paths } => self.csv_callback(*file, &add_paths),
             cli::DisplayMethod::Png { file_pattern } => self.png_callback(bounds, file_pattern),
         };
 
@@ -268,7 +300,7 @@ impl AppSettings<'_> {
         (tree, upper_right)
     }
 
-    fn csv_callback(&self, file: Option<&str>) -> DisplayCallback {
+    fn csv_callback<'p>(&self, file: Option<&str>, paths: &'p [TreePath]) -> DisplayCallback<'p> {
         // Get the file or handle to stdout:
         let mut writer: Box<dyn io::Write> = match file {
             Some(f) => match File::create(f) {
@@ -282,32 +314,80 @@ impl AppSettings<'_> {
         };
 
         // Off the bat, print out the csv header information we need:
-        writeln!(writer, "time,pleural pressure,flow out,total volume")
-            .expect("failed to write CSV header");
+        let mut header = "time,pleural pressure,flow out,total volume".to_owned();
+        for p in paths {
+            let s = p
+                .iter()
+                .map(|d| match d {
+                    ChildDirection::Left => ".left",
+                    ChildDirection::Right => ".right",
+                })
+                .collect::<String>();
+
+            header.push(',');
+            header.push_str(&s);
+            header.push_str(" flow out");
+            header.push(',');
+            header.push_str(&s);
+            header.push_str(" total volume");
+        }
+
+        writeln!(writer, "{}", header).expect("failed to write CSV header");
 
         Box::new(
             move |time: Float, tree: &BranchTree, sim_env: &SimulationEnvironment| {
-                // Flow out, in mm³/s:
-                let flow_out = -tree.root_flow_in() * 1e9;
+                let root_path = Vec::new();
 
-                // Total volume, in m³/s
-                let mut total_volume = 0.0;
-                for i in 0..tree.count_acinar_regions() {
-                    match &tree[BranchId::new(BranchKind::Acinar, i)] {
-                        Branch::Acinar(a) => total_volume += a.volume,
-                        _ => unreachable!(),
+                let mut flow_and_volume_values = Vec::new();
+
+                for p in iter::once(&root_path).chain(paths) {
+                    // Get the root node for this path
+                    let mut path_root = &tree[tree.root_id()];
+                    for (i, c) in p.iter().enumerate() {
+                        match path_root {
+                            Branch::Bifurcation(b) => match c {
+                                ChildDirection::Left => path_root = &tree[b.left_child],
+                                ChildDirection::Right => path_root = &tree[b.right_child],
+                            },
+                            Branch::Acinar(_) => {
+                                eprintln!(
+                                    "bad path '{}', ends early at '{}'",
+                                    DisplayTreePath(&p),
+                                    DisplayTreePath(&p[..i + 1])
+                                );
+                                exit(1);
+                            }
+                        }
                     }
+
+                    let flow_out = -path_root.tube().flow_rate * 1e9;
+                    flow_and_volume_values.push(flow_out);
+
+                    // Find the total volume:
+                    let mut stack = vec![path_root];
+                    let mut volume = 0.0; // Units of m³/s
+                    while let Some(n) = stack.pop() {
+                        match n {
+                            Branch::Acinar(a) => volume += a.volume,
+                            Branch::Bifurcation(b) => {
+                                stack.push(&tree[b.right_child]);
+                                stack.push(&tree[b.left_child]);
+                            }
+                        }
+                    }
+
+                    // Convert to mm³/s
+                    volume *= 1e9;
+                    flow_and_volume_values.push(volume);
                 }
 
-                // And now in mm³/s
-                total_volume *= 1e9;
+                let mut line = format!("{},{}", time, sim_env.pleural_pressure);
+                for v in flow_and_volume_values {
+                    line.push(',');
+                    write!(line, "{}", v).unwrap();
+                }
 
-                writeln!(
-                    writer,
-                    "{},{},{},{}",
-                    time, sim_env.pleural_pressure, flow_out, total_volume
-                )
-                .expect("failed to write CSV line");
+                writeln!(writer, "{}", line).expect("failed to write CSV line");
                 writer.flush().expect("Failed to flush CSV line");
             },
         )

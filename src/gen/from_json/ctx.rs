@@ -4,7 +4,7 @@ use super::config::{
     BaseGenerationConfig, ChildInheritConfig, GenerationConfig, GeneratorNode, ManualSettings,
 };
 use crate::gen::Point;
-use crate::{float, Float};
+use crate::{float, ChildDirection, Float};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -47,12 +47,6 @@ pub struct GenCtx<'cfg> {
 enum Parent<'cfg> {
     Base(&'cfg BaseGenerationConfig),
     Override(Rc<GenCtx<'cfg>>, Option<ChildDirection>),
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-enum ChildDirection {
-    Left,
-    Right,
 }
 
 impl ChildDirection {
