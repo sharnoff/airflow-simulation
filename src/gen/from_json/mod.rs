@@ -2,7 +2,9 @@
 //! options
 
 use super::*;
-use crate::{float, ATMOSPHERIC_PRESSURE, TOTAL_LUNG_VOLUME, TRACHEA_LENGTH, TRACHEA_RADIUS};
+use crate::{
+    float, EnvConfig, ATMOSPHERIC_PRESSURE, TOTAL_LUNG_VOLUME, TRACHEA_LENGTH, TRACHEA_RADIUS,
+};
 use eyre::{eyre, Context};
 use std::fs;
 use std::path::Path;
@@ -31,6 +33,7 @@ pub struct FromJsonGenerator {
     by_parent_id: Vec<Branch>,
     upper_right: Point,
     start_parent_info: ParentInfo,
+    env_config: EnvConfig,
 }
 
 #[derive(Debug)]
@@ -71,6 +74,11 @@ impl FromJsonGenerator {
         self.upper_right
     }
 
+    /// Produces the configured environment information
+    pub fn env_config(&self) -> EnvConfig {
+        self.env_config
+    }
+
     // Internally:
     //
     // This function needs to generate the entire tree as a first-pass in order to determine some
@@ -85,6 +93,32 @@ impl FromJsonGenerator {
             return Err(eyre!("maximum depth must be at least 2"))
                 .context("invalid value at .config.max_depth in JSON model spec");
         }
+
+        // Check the environment config
+        let EnvConfig {
+            pleural_pressure: pressure_cfg,
+        } = &parsed.env;
+
+        let result = if pressure_cfg.lo >= pressure_cfg.hi {
+            Err(eyre!(
+                "pleural pressure `lo` ({}) must be less than `hi` ({})",
+                pressure_cfg.lo,
+                pressure_cfg.hi
+            ))
+        } else if !(pressure_cfg.lo..=pressure_cfg.hi).contains(&pressure_cfg.init) {
+            Err(eyre!(
+                "initial pleural pressure {} must be within `lo` and `hi` bounds ({} and {})",
+                pressure_cfg.init,
+                pressure_cfg.lo,
+                pressure_cfg.hi,
+            ))
+        } else if pressure_cfg.period <= 0.0 {
+            Err(eyre!("period must be > 0 (default: 4.0)"))
+        } else {
+            Ok(())
+        };
+
+        result.context("invalid value at .env.pleural_pressure in JSON model spec")?;
 
         // We'll now construct the full tree.
         let mut by_parent_id = Vec::new();
@@ -226,6 +260,7 @@ impl FromJsonGenerator {
             by_parent_id,
             upper_right,
             start_parent_info,
+            env_config: parsed.env,
         })
     }
 

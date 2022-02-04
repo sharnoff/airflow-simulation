@@ -3,6 +3,7 @@
 //! The main entrypoint is actually in [`cli::run`] ('src/cli.rs'), which handles the various
 //! things that we may want to do -- that in turn calls the `run` method on [`AppSettings`]
 
+use serde::Deserialize;
 use std::fmt::{self, Display, Formatter, Write as _};
 use std::fs::File;
 use std::io::{self, Write as _};
@@ -179,6 +180,32 @@ const TRACHEA_LENGTH: Float = 0.12;
 /// because it's a simpler number & this doesn't need to be perfectly accurate yet.
 const TRACHEA_RADIUS: Float = 0.01;
 
+#[derive(Debug, Copy, Clone, Default, Deserialize)]
+pub struct EnvConfig {
+    #[serde(default)]
+    pleural_pressure: PleuralPressureConfig,
+}
+
+#[derive(Debug, Copy, Clone, Deserialize)]
+#[serde(default)]
+struct PleuralPressureConfig {
+    init: Float,
+    lo: Float,
+    hi: Float,
+    period: Float,
+}
+
+impl Default for PleuralPressureConfig {
+    fn default() -> Self {
+        PleuralPressureConfig {
+            init: 0.0,
+            lo: -500.0,
+            hi: 1500.0,
+            period: 4.0,
+        }
+    }
+}
+
 fn main() {
     // Internally calls `AppSettings::run`
     cli::run()
@@ -190,13 +217,13 @@ type DisplayCallback<'a> = Box<dyn 'a + FnMut(Float, &BranchTree, &SimulationEnv
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
     fn run(&self) {
-        let (mut tree, bounds) = self.make_tree_and_bounds().unwrap_or_else(|e| {
+        let (mut tree, bounds, env_cfg) = self.make_tree_and_bounds().unwrap_or_else(|e| {
             eprintln!("{:?}", e.wrap_err("failed to construct model"));
             exit(1)
         });
 
         let mut sim_env = SimulationEnvironment {
-            pleural_pressure: Self::pleural_pressure_at_time(0.0),
+            pleural_pressure: env_cfg.pleural_pressure.at_time(0.0),
             tracheal_pressure: ATMOSPHERIC_PRESSURE,
             air_viscosity: 1.8e-5,
             air_density: 1.225,
@@ -220,7 +247,7 @@ impl AppSettings<'_> {
             }
 
             // The pleural pressure needs to update at each timestep
-            sim_env.pleural_pressure = Self::pleural_pressure_at_time(current_time);
+            sim_env.pleural_pressure = env_cfg.pleural_pressure.at_time(current_time);
 
             if let Err(msg) = sim_env.do_tick(&mut tree, self.timestep) {
                 println!("\nfailed to do simulation tick: {}", msg);
@@ -235,20 +262,20 @@ impl AppSettings<'_> {
     /// view into it
     ///
     /// It is assumed that the tree shouldn't display further down or left than (0,0).
-    fn make_tree_and_bounds(&self) -> eyre::Result<(BranchTree, Point)> {
+    fn make_tree_and_bounds(&self) -> eyre::Result<(BranchTree, Point, EnvConfig)> {
         match &self.model {
             cli::Model::FromJson { file } => Self::make_json_tree(&file),
             cli::Model::Symmetric { depth } => Ok(Self::make_symmetric_tree(*depth)),
         }
     }
 
-    fn make_json_tree(file: &Path) -> eyre::Result<(BranchTree, Point)> {
+    fn make_json_tree(file: &Path) -> eyre::Result<(BranchTree, Point, EnvConfig)> {
         let gen = FromJsonGenerator::from_file(file)?;
         let tree = BranchTree::from_generator(gen.start_parent_info(), &gen);
-        Ok((tree, gen.upper_right()))
+        Ok((tree, gen.upper_right(), gen.env_config()))
     }
 
-    fn make_symmetric_tree(depth: usize) -> (BranchTree, Point) {
+    fn make_symmetric_tree(depth: usize) -> (BranchTree, Point, EnvConfig) {
         const TOTAL_HEIGHT: Float = TRACHEA_LENGTH * 2.7;
         const TOTAL_WIDTH: Float = TOTAL_HEIGHT * 1.3;
 
@@ -297,7 +324,7 @@ impl AppSettings<'_> {
             y: TOTAL_HEIGHT,
         };
 
-        (tree, upper_right)
+        (tree, upper_right, EnvConfig::default())
     }
 
     fn csv_callback<'p>(&self, file: Option<&str>, paths: &'p [TreePath]) -> DisplayCallback<'p> {
@@ -453,34 +480,29 @@ impl AppSettings<'_> {
             },
         )
     }
+}
 
+impl PleuralPressureConfig {
     /// Returns the pleural pressure (i.e. the "pressure" exerted on the lungs by the diaphragm) at
     /// the given point in time
     ///
-    /// The pressure is determined by a sinusoidal function from -500 to 1500 with a period of 4
-    /// seconds. It's not the *most* accurate representation in the world, but it works to
-    /// demonstrate that the model is performing sensibly.
+    /// The pressure is determined by a sinusoidal function from `self.lo` to `self.`hi` with the
+    /// period given by `self.period`. It's not the *most* accurate representation in the world,
+    /// but it works to demonstrate that the model is performing sensibly.
     ///
-    /// We set the pleural pressure equal to zero at time 0s, then increase from there (i.e.
+    /// We start with a pressure of `self.init` at time 0s, and then increase from there (i.e.
     /// breathe out).
-    fn pleural_pressure_at_time(time: Float) -> Float {
-        const PERIOD: Float = 4.0;
-        const START_PRESSURE: Float = 0.0;
-        const LO_PRESSURE: Float = -500.0;
-        const HI_PRESSURE: Float = 1500.0;
+    fn at_time(&self, time: Float) -> Float {
+        assert!((self.lo..self.hi).contains(&self.init));
 
-        debug_assert!((LO_PRESSURE..HI_PRESSURE).contains(&START_PRESSURE));
+        let amplitude = (self.hi - self.lo) / 2.0;
+        let center = (self.hi + self.lo) / 2.0;
 
-        // These should all be optimized into constants as well; it's just more annoying to write
-        // them as consts.
-        let amplitude = (HI_PRESSURE - LO_PRESSURE) / 2.0;
-        let center = (HI_PRESSURE + LO_PRESSURE) / 2.0;
-
-        let start_phase_height = (center - START_PRESSURE) / amplitude;
+        let start_phase_height = (center - self.init) / amplitude;
         let shift = start_phase_height.acos();
 
-        let stretch = float::PI * 2.0 / PERIOD;
+        let stretch = float::PI * 2.0 / self.period;
 
-        amplitude + LO_PRESSURE - amplitude * (time * stretch + shift).cos()
+        amplitude + self.lo - amplitude * (time * stretch + shift).cos()
     }
 }

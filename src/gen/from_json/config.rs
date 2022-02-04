@@ -1,6 +1,7 @@
 //! Wrapper module for the config structure, rooted at [`ParsedConfig`]
 
 use crate::float::Float;
+use crate::EnvConfig;
 use serde::Deserialize;
 use std::num::NonZeroUsize;
 
@@ -8,6 +9,8 @@ use std::num::NonZeroUsize;
 pub struct ParsedConfig {
     pub root: GeneratorNode,
     pub config: RootGenerationConfig,
+    #[serde(default)]
+    pub env: EnvConfig,
 }
 
 #[derive(Debug, Deserialize)]
