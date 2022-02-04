@@ -191,7 +191,7 @@ fn args_parser() -> clap::App<'static, 'static> {
             Arg::with_name("total-time")
                 .short("t")
                 .long("time")
-                .value_name("TIME")
+                .value_name("SECONDS")
                 .help("Set how long to run for, in seconds. Use 0 to run until stopped")
                 .takes_value(true)
                 .required(true)
@@ -200,7 +200,7 @@ fn args_parser() -> clap::App<'static, 'static> {
         .arg(
             Arg::with_name("timestep")
                 .long("timestep")
-                .value_name("TIMESTEP")
+                .value_name("SECONDS")
                 .help("Set the timestep to advance the simulation by each time, in seconds")
                 .long_help(concat!(
                     "Set the timestep to advance the simulation by each time, in seconds.\n",
