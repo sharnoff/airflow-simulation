@@ -7,3 +7,7 @@
 # Specific to latexmk
 *.fdb_latexmk
 *.fls
+
+# BibTeX
+*.bbl
+*.blg

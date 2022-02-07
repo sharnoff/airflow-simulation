@@ -12,8 +12,10 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
 \usepackage{bm}
+\usepackage{changepage}
 \usepackage{hyperref}
 \usepackage{textcomp}
+\usepackage{xcolor}
 
 % Usage: \code{ <text> }
 %
@@ -30,6 +32,12 @@
 % Outputs the norm / magnitude / absolute value of the contents - || contents ||
 % Taken from https://tex.stackexchange.com/a/107190
 \newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+
+\newcommand{\todo}[1]{%
+    \begin{adjustwidth}{-0.5cm}{-0.5cm}{%
+        \noindent\textcolor{red}{Todo:} \bf{#1}%
+    }\end{adjustwidth}%
+}
 
 \begin{document}
 
@@ -73,5 +81,9 @@
 
 \newpage
 \input{Ch3-methods.tex}
+
+\newpage
+\bibliography{ref.bib}{}
+\bibliographystyle{plain}
 
 \end{document}

@@ -3,16 +3,36 @@
 % vim: set ft=tex:
 \section{Introduction}
 
-Outline (generally pretty short; most of the introductory information is in ``Background''):
+\subsection{Motivation}
 
-\begin{itemize}
-    \item Motivation -- the lungs are generally pretty complicated, and respiratory diseases are all
-        too common. It would be really useful to get more insight into what happens as they move
-        further away from ``normal'' functioning, but the ethics board wouldn't be happy if we
-        started damaging patient's lungs ``for science''. So computational models are a natural
-        solution. Historically, they've been difficult to 
-    \item Contributions to the field -- basically, a new tool to play with. This should be really
-        useful to people looking to find new results about \textit{how} the lungs get impacted by
-        various diseases. To kick-start this, we've investigated the effects of a couple \textlangle
-        diseases?  changes in lung morphology? \textrangle
-\end{itemize}
+Respiratory diseases account for more than 10\% of \textit{all} disability-adjusted life-years lost
+due to any medical condition, second only to cardiovascular diseases. ~\cite{GlobalImpact} Because
+of this, any betterment of our understanding of the lungs and how they change from damage has
+immediate benefits towards understanding one of the most significant categories of disease.
+
+In spite of this, there are relatively few existing methods for experimentation. Clinical
+observations on live patients are necessarily limited, and common techniques~-- spirometry,
+inert-gas washout, and fMRI imaging~-- all have severe limitations that render them infeasible or
+impossible to use for obtaining detailed data on the lungs at scale. And on top of that, the
+difficulty of drawing inference from these methods is enhanced by the fact that they are purely
+observational; in this paper, we are concerned with the effects of certain changes in lung
+morphology (such as: tightening of the airways, stiffness in the expansion and contraction, etc.).
+
+Of course, it would be unethical to \textit{induce} these changes in patients. However,
+sufficiently-accurate computational models present a natural solution. By designing models that can
+easily be arbitrarily deformed or otherwise altered, we create the opportunity to efficiently
+investigate how targeted changes in lung morphology affect both lung functioning as a whole and the
+stresses placed on individual regions.
+
+\todo{I'd like to add something along the lines of: ``historically, computational models have been
+too expensive for experimentation without specialized equipment, but recent developments (i.e. Foy)
+have show other methods for simulating airflow are both efficient and accurate.''}
+
+\subsection{Contributions to the field}
+
+This paper introduces a new tool for simulating and observing changes to the lungs, and their
+precise effects.
+
+\todo{Something about: ``this is useful to people looking to find new results about \textit{how} the
+lungs get impacted by various diseases.'' Would like to also say: ``we have investigated the effects
+of clinically-observed symptoms from a couple diseases, to showcase the utility of this tool''}
