@@ -4,8 +4,8 @@ use std::ops::{Index, IndexMut};
 
 use crate::gen::{self, BranchGenerator};
 use crate::{
-    AcinarRegion, Bifurcation, Branch, BranchId, BranchKind, Point, Tube, UNSET_END_PRESSURE,
-    UNSET_FLOW_RATE,
+    AcinarRegion, Bifurcation, Branch, BranchId, BranchKind, Float, Point, Tube,
+    UNSET_END_PRESSURE, UNSET_FLOW_RATE,
 };
 
 /// Wrapper around a `Vec<Branch>` to provide nicer access to the internals
@@ -88,7 +88,11 @@ impl BranchTree {
     /// ## Panics
     ///
     /// The value of `start.id` MUST be zero, and will panic if this is not the case.
-    pub fn from_generator(start: gen::ParentInfo, gen: &impl BranchGenerator) -> Self {
+    pub fn from_generator(
+        start: gen::ParentInfo,
+        gen: &impl BranchGenerator,
+        degraded: bool,
+    ) -> Self {
         use gen::{ChildInfo, ParentInfo};
 
         assert_eq!(start.id, 0);
@@ -102,8 +106,9 @@ impl BranchTree {
             parent: ParentInfo,
             parent_id: &mut usize,
             gen: &impl BranchGenerator,
+            degraded: bool,
         ) -> (BranchId, BranchId) {
-            let (left, right) = gen.make_children(parent, depth);
+            let (left, right) = gen.make_children(parent, depth, degraded);
 
             // Helper closure to fill out a child. Makes a recursive call to `full_gen` and places
             // the child branch into `tree.items`
@@ -118,7 +123,7 @@ impl BranchTree {
 
                 if let Some(as_parent) = info.as_parent(parent, parent_id) {
                     let (child_left, child_right) =
-                        full_gen(tree, depth + 1, as_parent, parent_id, gen);
+                        full_gen(tree, depth + 1, as_parent, parent_id, gen, degraded);
                     let branch = Bifurcation {
                         tube,
                         left_child: child_left,
@@ -149,7 +154,7 @@ impl BranchTree {
             root_start_pos: start.pos,
         };
         let mut parent_id = start.id;
-        let (left, right) = full_gen(&mut tree, 1, start, &mut parent_id, gen);
+        let (left, right) = full_gen(&mut tree, 1, start, &mut parent_id, gen, degraded);
 
         let root = Bifurcation {
             tube: Tube {
@@ -167,6 +172,72 @@ impl BranchTree {
 
         tree.root_id = tree.push_bifurcation(root);
         tree
+    }
+
+    fn structure_state_len(&self) -> usize {
+        self.bifurcations.len() + 2 * self.acinars.len()
+    }
+
+    /// Returns a vector corresponding to the state of the tree that is subject to degration
+    ///
+    /// Currently, this is just branch radii and compliance for each acinar region.
+    pub fn structure_state(&self) -> Vec<Float> {
+        let mut state = vec![0.0; self.structure_state_len()];
+
+        let mut i = 0;
+        for b in self.bifurcations.iter().chain(self.acinars.iter()) {
+            match b {
+                Branch::Bifurcation(Bifurcation { tube, .. }) => {
+                    state[i] = tube.radius;
+                    i += 1;
+                }
+                Branch::Acinar(AcinarRegion {
+                    tube, compliance, ..
+                }) => {
+                    state[i] = tube.radius;
+                    i += 1;
+                    state[i] = *compliance;
+                    i += 1;
+                }
+            }
+        }
+
+        assert_eq!(i, state.len());
+
+        state
+    }
+
+    /// Sets the "structure" of the tree according, using a vector that matches the return of
+    /// [`structure_state`]
+    ///
+    /// ## Panics
+    ///
+    /// This method will panic if `state` does not have the same length as what [`structure_state`]
+    /// returns.
+    ///
+    /// [`structure_state`]: Self::structure_state
+    pub fn set_structure(&mut self, state: &[Float]) {
+        assert_eq!(state.len(), self.structure_state_len());
+
+        let mut i = 0;
+        for b in self.bifurcations.iter_mut().chain(self.acinars.iter_mut()) {
+            match b {
+                Branch::Bifurcation(Bifurcation { tube, .. }) => {
+                    tube.radius = state[i];
+                    i += 1;
+                }
+                Branch::Acinar(AcinarRegion {
+                    tube, compliance, ..
+                }) => {
+                    tube.radius = state[i];
+                    i += 1;
+                    *compliance = state[i];
+                    i += 1;
+                }
+            }
+        }
+
+        assert_eq!(i, state.len());
     }
 
     #[cfg(test)]

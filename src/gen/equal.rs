@@ -11,7 +11,12 @@ pub struct EqualChildGenerator {
 }
 
 impl BranchGenerator for EqualChildGenerator {
-    fn make_children(&self, parent: ParentInfo, depth: usize) -> (ChildInfo, ChildInfo) {
+    fn make_children(
+        &self,
+        parent: ParentInfo,
+        depth: usize,
+        _degraded: bool,
+    ) -> (ChildInfo, ChildInfo) {
         let tube_radius = float::FRAC_1_SQRT_2 * parent.tube_radius;
         // Arbitrary. A bit less than 1/sqrt(2)
         let length = 0.66 * parent.length;

@@ -3,7 +3,8 @@
 
 use super::*;
 use crate::{
-    float, EnvConfig, ATMOSPHERIC_PRESSURE, TOTAL_LUNG_VOLUME, TRACHEA_LENGTH, TRACHEA_RADIUS,
+    float, EnvConfig, Schedule, ATMOSPHERIC_PRESSURE, TOTAL_LUNG_VOLUME, TRACHEA_LENGTH,
+    TRACHEA_RADIUS,
 };
 use eyre::{eyre, Context};
 use std::fs;
@@ -34,20 +35,32 @@ pub struct FromJsonGenerator {
     upper_right: Point,
     start_parent_info: ParentInfo,
     env_config: EnvConfig,
+    schedule: Schedule,
 }
 
 #[derive(Debug)]
 struct Branch {
     left: ChildInfo,
     right: ChildInfo,
+    left_deg: ChildInfo,
+    right_deg: ChildInfo,
 }
 
 // The implementation of `BranchGenerator` just uses the values that we've previously constructed
 // from a dry-run.
 impl BranchGenerator for FromJsonGenerator {
-    fn make_children(&self, parent: ParentInfo, _depth: usize) -> (ChildInfo, ChildInfo) {
+    fn make_children(
+        &self,
+        parent: ParentInfo,
+        _depth: usize,
+        degraded: bool,
+    ) -> (ChildInfo, ChildInfo) {
         let branch = &self.by_parent_id[parent.id];
-        (branch.left, branch.right)
+        if degraded {
+            (branch.left_deg, branch.right_deg)
+        } else {
+            (branch.left, branch.right)
+        }
     }
 }
 
@@ -77,6 +90,11 @@ impl FromJsonGenerator {
     /// Produces the configured environment information
     pub fn env_config(&self) -> EnvConfig {
         self.env_config
+    }
+
+    /// Produces the configured degradation schedule (or the default if none was supplied)
+    pub fn schedule(&self) -> Schedule {
+        self.schedule.clone()
     }
 
     // Internally:
@@ -119,6 +137,36 @@ impl FromJsonGenerator {
         };
 
         result.context("invalid value at .env.pleural_pressure in JSON model spec")?;
+
+        // Check the schedule:
+        if parsed.schedule.keyframes.is_empty() {
+            return Err(eyre!("must supply at least one keyframe"))
+                .context("invalid value at .schedule in JSON model spec")?;
+        }
+        for (i, kf) in parsed.schedule.keyframes.iter().enumerate() {
+            let result = if kf.time < 0.0 {
+                Err(eyre!("keyframe time must be >= 0"))
+            } else if i != 0 {
+                let p = &parsed.schedule.keyframes[i - 1];
+                match p.time < kf.time {
+                    true => Ok(()),
+                    false => Err(eyre!(
+                        "keyframe time must be greater than previous keyframe ({} vs {})",
+                        p.time,
+                        kf.time
+                    )),
+                }
+            } else {
+                Ok(())
+            };
+
+            result.with_context(|| {
+                format!(
+                    "invalid value at .schedule.keyframes[{}].time in JSON model spec",
+                    i
+                )
+            })?;
+        }
 
         // We'll now construct the full tree.
         let mut by_parent_id = Vec::new();
@@ -169,11 +217,17 @@ impl FromJsonGenerator {
                     let info = ChildInfo {
                         angle_from_parent,
                         length: this_branch.length,
-                        tube_radius: this_branch.abnormal_radius,
-                        compliance: Some(abnormal_c * base_compliance),
+                        tube_radius: this_branch.nominal_radius,
+                        compliance: Some(nominal_c * base_compliance),
                     };
 
-                    child_stack.push((info, nominal_compliance));
+                    let info_deg = ChildInfo {
+                        tube_radius: this_branch.abnormal_radius,
+                        compliance: Some(abnormal_c * base_compliance),
+                        ..info
+                    };
+
+                    child_stack.push((info, info_deg, nominal_compliance));
                     continue;
                 }
 
@@ -194,20 +248,30 @@ impl FromJsonGenerator {
                 // Note that the the order is the *same* as when we pushed to 'stack'; this is
                 // because "pushed to stack first" -> "handled first" -> "lower in 'child_stack'";
                 // contrary to what you might otherwise assume.
-                let (left, l_compliance) = child_stack.pop().unwrap();
-                let (right, r_compliance) = child_stack.pop().unwrap();
+                let (left, left_deg, l_compliance) = child_stack.pop().unwrap();
+                let (right, right_deg, r_compliance) = child_stack.pop().unwrap();
 
-                by_parent_id.push(Branch { left, right });
+                by_parent_id.push(Branch {
+                    left,
+                    right,
+                    left_deg,
+                    right_deg,
+                });
 
                 let this_info = ChildInfo {
                     angle_from_parent,
                     length: this_branch.length,
-                    tube_radius: this_branch.abnormal_radius,
+                    tube_radius: this_branch.nominal_radius,
                     // non-terminal branches are marked as such by not having a compliance.
                     compliance: None,
                 };
 
-                child_stack.push((this_info, l_compliance + r_compliance));
+                let this_info_deg = ChildInfo {
+                    tube_radius: this_branch.abnormal_radius,
+                    ..this_info
+                };
+
+                child_stack.push((this_info, this_info_deg, l_compliance + r_compliance));
             }
         }
 
@@ -220,7 +284,7 @@ impl FromJsonGenerator {
 
         // After generating the tree, we now need to do a full pass to rescale compliances to match
         // the expected total volume.
-        let generated_total_compliance = child_stack[0].1;
+        let generated_total_compliance = child_stack[0].2;
         let expected_total_compliance = Self::guess_compliance_for_depth(total_volume, 1);
 
         // If the generated compliance is not within a small amount of the actual compliance, then
@@ -230,7 +294,7 @@ impl FromJsonGenerator {
         if (1.0 - compliance_rescale).abs() > epsilon {
             by_parent_id
                 .iter_mut()
-                .map(|b| [&mut b.left, &mut b.right])
+                .map(|b| [&mut b.left, &mut b.right, &mut b.left_deg, &mut b.right_deg])
                 .flatten()
                 .filter_map(|info| info.compliance.as_mut())
                 .for_each(|compliance| *compliance *= compliance_rescale);
@@ -261,6 +325,7 @@ impl FromJsonGenerator {
             upper_right,
             start_parent_info,
             env_config: parsed.env,
+            schedule: parsed.schedule,
         })
     }
 

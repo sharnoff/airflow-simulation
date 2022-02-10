@@ -1,19 +1,28 @@
 {
+	"schedule": {
+		"interpolate": "tanh",
+		"keyframes": [
+			{ "time": 0, "is_degraded": false },
+			{ "time": 4, "is_degraded": true },
+			{ "time": 8, "is_degraded": true },
+			{ "time": 12, "is_degraded": false }
+		]
+	},
 	"config": {
 		"branch_length_decrease": 0.75,
 		"branch_radius_decrease": 0.75,
 		"split_angle": 0.8,
-		"max_depth": 5
+		"max_depth": 6
 	},
 	"root": {
 		"type": "manual",
-		"left_override": { "relative_angle": 0.7 },
+		"left_override": { "relative_angle": 0.7, "relative_radius_abnormal": 0.075 },
 		"left": {
 			"type": "auto",
 			"child_angles": [1.2, 0.3, { "reset_after": 2 }],
 			"branch_length_decrease": [0.65, 0.9, { "reset_after": 1 }]
 		},
-		"right_override": { "relative_angle": 0.7, "relative_radius_abnormal": 0.3 },
+		"right_override": { "relative_angle": 0.7, "relative_radius_abnormal": 0.075 },
 		"right": {
 			"type": "auto",
 			"child_angles": [0.3, 1.2, { "reset_after": 2 }],

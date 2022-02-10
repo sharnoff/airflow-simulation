@@ -4,6 +4,7 @@
 //! things that we may want to do -- that in turn calls the `run` method on [`AppSettings`]
 
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter, Write as _};
 use std::fs::File;
 use std::io::{self, Write as _};
@@ -206,18 +207,104 @@ impl Default for PleuralPressureConfig {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct Schedule {
+    interpolate: Interpolate,
+    keyframes: Vec<KeyFrame>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize)]
+enum Interpolate {
+    #[serde(alias = "linear")]
+    Linear,
+    #[serde(alias = "tanh")]
+    Tanh,
+}
+
+#[derive(Debug, Copy, Clone, Deserialize)]
+struct KeyFrame {
+    time: Float,
+    is_degraded: bool,
+}
+
+// Default schedule is just degraded
+impl Default for Schedule {
+    fn default() -> Self {
+        Schedule {
+            interpolate: Interpolate::Linear,
+            keyframes: vec![KeyFrame {
+                time: 0.0,
+                is_degraded: true,
+            }],
+        }
+    }
+}
+
+impl Schedule {
+    fn degradation_at_time(&self, time: Float) -> Float {
+        let frame_to_factor = |f: &KeyFrame| f.is_degraded as u8 as Float;
+
+        match self
+            .keyframes
+            .binary_search_by(|f| f.time.partial_cmp(&time).unwrap())
+        {
+            // Simple case that occurs very rarely.
+            Ok(i) => frame_to_factor(&self.keyframes[i]),
+
+            // Before the first keyframe; return it:
+            Err(0) => frame_to_factor(&self.keyframes[0]),
+            // After last keyframe; continue with it:
+            Err(i) if i == self.keyframes.len() => frame_to_factor(self.keyframes.last().unwrap()),
+            // Between two keyframes, mix the factors:
+            Err(i) => {
+                let before = &self.keyframes[i - 1];
+                let after = &self.keyframes[i];
+
+                let f = (time - before.time) / (after.time - before.time);
+                Self::interpolate(
+                    self.interpolate,
+                    f,
+                    frame_to_factor(before),
+                    frame_to_factor(after),
+                )
+            }
+        }
+    }
+
+    fn interpolate(int: Interpolate, f: Float, before: Float, after: Float) -> Float {
+        if before == after {
+            return before;
+        }
+
+        match int {
+            Interpolate::Linear => f * after + (1.0 - f) * before,
+            Interpolate::Tanh => {
+                let lerp = 0.5 * (6.0 * f - 3.0).tanh() + 0.5;
+                Self::interpolate(Interpolate::Linear, lerp, before, after)
+            }
+        }
+    }
+}
+
+struct TreePair {
+    nominal: BranchTree,
+    degraded: BranchTree,
+}
+
 fn main() {
     // Internally calls `AppSettings::run`
     cli::run()
 }
 
-// Callback to output the state of the tree, given the current time & the state of the tree.
-type DisplayCallback<'a> = Box<dyn 'a + FnMut(Float, &BranchTree, &SimulationEnvironment)>;
+// Callback to output the state of the tree, given the current time, state of the tree, and
+// degradation factor
+type DisplayCallback<'a> = Box<dyn 'a + FnMut(Float, &BranchTree, &SimulationEnvironment, Float)>;
 
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
     fn run(&self) {
-        let (mut tree, bounds, env_cfg) = self.make_tree_and_bounds().unwrap_or_else(|e| {
+        let (tree_pair, bounds, env_cfg, sched) = self.make_tree_and_bounds().unwrap_or_else(|e| {
             eprintln!("{:?}", e.wrap_err("failed to construct model"));
             exit(1)
         });
@@ -229,6 +316,13 @@ impl AppSettings<'_> {
             air_density: 1.225,
         };
 
+        let nominal_state = tree_pair.nominal.structure_state();
+        let degraded_state = tree_pair.degraded.structure_state();
+
+        let mut tree = tree_pair.degraded;
+        let mut deg_factor = sched.degradation_at_time(0.0);
+        tree.set_structure(&lerp(&nominal_state, &degraded_state, deg_factor));
+
         sim_env.reset(&mut tree);
 
         let mut callback = match &self.display_method {
@@ -236,7 +330,7 @@ impl AppSettings<'_> {
             cli::DisplayMethod::Png { file_pattern } => self.png_callback(bounds, file_pattern),
         };
 
-        callback(0.0, &tree, &sim_env);
+        callback(0.0, &tree, &sim_env, deg_factor);
 
         for i in 1.. {
             // Better to recompute than += timestep because the latter is less precise.
@@ -249,12 +343,19 @@ impl AppSettings<'_> {
             // The pleural pressure needs to update at each timestep
             sim_env.pleural_pressure = env_cfg.pleural_pressure.at_time(current_time);
 
+            // And possibly we need to degrade (or un-degrade) the tree
+            let old_deg_factor = deg_factor;
+            deg_factor = sched.degradation_at_time(current_time);
+            if deg_factor != old_deg_factor {
+                tree.set_structure(&lerp(&nominal_state, &degraded_state, deg_factor));
+            }
+
             if let Err(msg) = sim_env.do_tick(&mut tree, self.timestep) {
                 println!("\nfailed to do simulation tick: {}", msg);
                 return;
             }
 
-            callback(current_time, &tree, &sim_env);
+            callback(current_time, &tree, &sim_env, deg_factor);
         }
     }
 
@@ -262,20 +363,24 @@ impl AppSettings<'_> {
     /// view into it
     ///
     /// It is assumed that the tree shouldn't display further down or left than (0,0).
-    fn make_tree_and_bounds(&self) -> eyre::Result<(BranchTree, Point, EnvConfig)> {
+    fn make_tree_and_bounds(&self) -> eyre::Result<(TreePair, Point, EnvConfig, Schedule)> {
         match &self.model {
             cli::Model::FromJson { file } => Self::make_json_tree(&file),
             cli::Model::Symmetric { depth } => Ok(Self::make_symmetric_tree(*depth)),
         }
     }
 
-    fn make_json_tree(file: &Path) -> eyre::Result<(BranchTree, Point, EnvConfig)> {
+    fn make_json_tree(file: &Path) -> eyre::Result<(TreePair, Point, EnvConfig, Schedule)> {
         let gen = FromJsonGenerator::from_file(file)?;
-        let tree = BranchTree::from_generator(gen.start_parent_info(), &gen);
-        Ok((tree, gen.upper_right(), gen.env_config()))
+        let start = gen.start_parent_info();
+        let pair = TreePair {
+            nominal: BranchTree::from_generator(start, &gen, false),
+            degraded: BranchTree::from_generator(start, &gen, true),
+        };
+        Ok((pair, gen.upper_right(), gen.env_config(), gen.schedule()))
     }
 
-    fn make_symmetric_tree(depth: usize) -> (BranchTree, Point, EnvConfig) {
+    fn make_symmetric_tree(depth: usize) -> (TreePair, Point, EnvConfig, Schedule) {
         const TOTAL_HEIGHT: Float = TRACHEA_LENGTH * 2.7;
         const TOTAL_WIDTH: Float = TOTAL_HEIGHT * 1.3;
 
@@ -315,7 +420,7 @@ impl AppSettings<'_> {
             // zero.
             max_depth: depth + 1,
         };
-        let tree = BranchTree::from_generator(start, &generator);
+        let tree = BranchTree::from_generator(start, &generator, true);
 
         // Realistically, this doesn't *quite* need to be a square, but the actual bounding width
         // is a bit more complicated and I don't really want to deal with that right now.
@@ -324,7 +429,13 @@ impl AppSettings<'_> {
             y: TOTAL_HEIGHT,
         };
 
-        (tree, upper_right, EnvConfig::default())
+        // No difference.
+        let pair = TreePair {
+            nominal: tree.clone(),
+            degraded: tree,
+        };
+
+        (pair, upper_right, EnvConfig::default(), Schedule::default())
     }
 
     fn csv_callback<'p>(&self, file: Option<&str>, paths: &'p [TreePath]) -> DisplayCallback<'p> {
@@ -341,7 +452,7 @@ impl AppSettings<'_> {
         };
 
         // Off the bat, print out the csv header information we need:
-        let mut header = "time,pleural pressure,flow out,total volume".to_owned();
+        let mut header = "time,pleural pressure,degradation ratio,flow out,total volume".to_owned();
         for p in paths {
             let s = p
                 .iter()
@@ -362,7 +473,7 @@ impl AppSettings<'_> {
         writeln!(writer, "{}", header).expect("failed to write CSV header");
 
         Box::new(
-            move |time: Float, tree: &BranchTree, sim_env: &SimulationEnvironment| {
+            move |time: Float, tree: &BranchTree, sim_env: &SimulationEnvironment, deg: Float| {
                 let root_path = Vec::new();
 
                 let mut flow_and_volume_values = Vec::new();
@@ -408,7 +519,7 @@ impl AppSettings<'_> {
                     flow_and_volume_values.push(volume);
                 }
 
-                let mut line = format!("{},{}", time, sim_env.pleural_pressure);
+                let mut line = format!("{},{},{}", time, sim_env.pleural_pressure, deg);
                 for v in flow_and_volume_values {
                     line.push(',');
                     // We ensure there's at least two decimal places because pasting into Google
@@ -470,7 +581,7 @@ impl AppSettings<'_> {
         let pat = file_pattern.to_owned();
 
         Box::new(
-            move |_time: Float, tree: &BranchTree, _: &SimulationEnvironment| {
+            move |_time: Float, tree: &BranchTree, _: &SimulationEnvironment, _: Float| {
                 img_config
                     .make_image(tree)
                     .save(cli::substitute_png_file_pattern(&pat, n, max_imgs))
@@ -480,6 +591,18 @@ impl AppSettings<'_> {
             },
         )
     }
+}
+
+fn lerp<'a>(xs: &'a [Float], ys: &'a [Float], factor: Float) -> Cow<'a, [Float]> {
+    if factor == 0.0 {
+        return Cow::Borrowed(xs);
+    } else if factor == 1.0 {
+        return Cow::Borrowed(ys);
+    }
+
+    let x_f = 1.0 - factor;
+    let y_f = factor;
+    Cow::Owned(xs.iter().zip(ys).map(|(x, y)| x * x_f + y * y_f).collect())
 }
 
 impl PleuralPressureConfig {

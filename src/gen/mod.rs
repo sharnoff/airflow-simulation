@@ -13,8 +13,16 @@ pub trait BranchGenerator {
     /// Makes a pair of child branches for the given parent branch, using whatever information is
     /// required from the generator itself
     ///
+    /// `degraded` indicates whether the dimensions of the children should use the "degraded" or
+    /// "abnormal" settings.
+    ///
     /// The returned tuple should be: `(left child, right child)` in that order.
-    fn make_children(&self, parent: ParentInfo, depth: usize) -> (ChildInfo, ChildInfo);
+    fn make_children(
+        &self,
+        parent: ParentInfo,
+        depth: usize,
+        degraded: bool,
+    ) -> (ChildInfo, ChildInfo);
 }
 
 /// The necessary information about a parent branch required in order to generate its children

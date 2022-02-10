@@ -1,7 +1,7 @@
 //! Wrapper module for the config structure, rooted at [`ParsedConfig`]
 
 use crate::float::Float;
-use crate::EnvConfig;
+use crate::{EnvConfig, Schedule};
 use serde::Deserialize;
 use std::num::NonZeroUsize;
 
@@ -11,6 +11,8 @@ pub struct ParsedConfig {
     pub config: RootGenerationConfig,
     #[serde(default)]
     pub env: EnvConfig,
+    #[serde(default)]
+    pub schedule: Schedule,
 }
 
 #[derive(Debug, Deserialize)]

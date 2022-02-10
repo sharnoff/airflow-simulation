@@ -4,8 +4,8 @@
 //! used elsewhere.
 
 /// Type alias for the selected global float type
-pub type Float = f32;
+pub type Float = f64;
 
 // import everything to do with the float
-pub use std::f32::consts::*;
-pub use std::f32::*;
+pub use std::f64::consts::*;
+pub use std::f64::*;
