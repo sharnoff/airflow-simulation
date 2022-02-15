@@ -216,10 +216,28 @@ pub struct Schedule {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize)]
 enum Interpolate {
+    /// Linear interpolation, i.e. `f(x) = x`
     #[serde(alias = "linear")]
     Linear,
+    /// Smoothed interpolation via tanh: `f(x) = .5 * tanh(6x - 3)/tanh(3) + .5
+    ///
+    /// The correction factor `1/tanh(3)` is there to avoid a sudden jump from 0.997 to 1, which
+    /// occurs without it
+    ///
+    /// This is the most curved of the available interpolation methods, about twice as much as
+    /// `Trig` and `Cubic`.
     #[serde(alias = "tanh")]
     Tanh,
+    /// Smoothed interpolation via cosine: `f(x) = (1 - cos(pi*x)) / 2`
+    ///
+    /// This is very similar in shape to `Cubic`, and only ever so slightly more curved. It is
+    /// about half as curved as `Tanh`.
+    #[serde(alias = "trig", alias = "sin", alias = "cos")]
+    Trig,
+    /// Smoothed interpolation with a cubic function: `f(x) = 3 x^2 - 2 x^3`
+    ///
+    /// This is very similar in shape to `Trig`, and only ever so slightly less curved. It is about
+    /// half as curved as `Tanh`.
     #[serde(alias = "cubic")]
     Cubic,
 }
@@ -284,6 +302,10 @@ impl Schedule {
             Interpolate::Tanh => {
                 let factor = 1.0 / Float::tanh(3.0);
                 let lerp = 0.5 * factor * Float::tanh(6.0 * f - 3.0) + 0.5;
+                Self::interpolate(Interpolate::Linear, lerp, before, after)
+            }
+            Interpolate::Trig => {
+                let lerp = (1.0 - Float::cos(float::PI * f)) / 2.0;
                 Self::interpolate(Interpolate::Linear, lerp, before, after)
             }
             Interpolate::Cubic => {

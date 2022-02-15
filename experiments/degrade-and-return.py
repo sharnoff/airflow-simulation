@@ -20,7 +20,7 @@ from pathlib import Path
 def main():
     total_times = [16]
     onsets = [4 + 0.5*i for i in range(9)] # 4, 4.5, ... 8
-    methods = ['linear','tanh', 'cubic']
+    methods = ['linear','tanh','cubic','trig']
     changes = [4]
     unhealthies = [4]
     unhealthy_radii = [0.075]
