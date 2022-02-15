@@ -20,7 +20,7 @@ from pathlib import Path
 def main():
     total_times = [16]
     onsets = [4 + 0.5*i for i in range(9)] # 4, 4.5, ... 8
-    methods = ['linear','tanh']
+    methods = ['linear','tanh', 'cubic']
     changes = [4]
     unhealthies = [4]
     unhealthy_radii = [0.075]
@@ -34,7 +34,6 @@ def main():
 
     # Ensure that our directory is there:
     Path('data/degrade-and-return').mkdir(parents=False, exist_ok=True)
-    Path(f'data/degrade-and-return/{template_hash}').mkdir(exist_ok=True)
 
     print('running...')
 
@@ -54,7 +53,7 @@ def main():
                             i += 1
 
     print('done.', end='\n\n')
-    print('check \'data/degrade-and-return/*.csv\' for results')
+    print(f'check \'data/degrade-and-return/*.csv\' for results')
 
 TEMPLATE = """
 {{

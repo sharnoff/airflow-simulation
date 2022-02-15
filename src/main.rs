@@ -220,6 +220,8 @@ enum Interpolate {
     Linear,
     #[serde(alias = "tanh")]
     Tanh,
+    #[serde(alias = "cubic")]
+    Cubic,
 }
 
 #[derive(Debug, Copy, Clone, Deserialize)]
@@ -280,7 +282,12 @@ impl Schedule {
         match int {
             Interpolate::Linear => f * after + (1.0 - f) * before,
             Interpolate::Tanh => {
-                let lerp = 0.5 * (6.0 * f - 3.0).tanh() + 0.5;
+                let factor = 1.0 / Float::tanh(3.0);
+                let lerp = 0.5 * factor * Float::tanh(6.0 * f - 3.0) + 0.5;
+                Self::interpolate(Interpolate::Linear, lerp, before, after)
+            }
+            Interpolate::Cubic => {
+                let lerp = 3.0 * f.powi(2) - 2.0 * f.powi(3);
                 Self::interpolate(Interpolate::Linear, lerp, before, after)
             }
         }
