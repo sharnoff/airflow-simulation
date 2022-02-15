@@ -34,6 +34,7 @@ def main():
 
     # Ensure that our directory is there:
     Path('data/degrade-and-return').mkdir(parents=False, exist_ok=True)
+    Path(f'data/degrade-and-return/{template_hash}').mkdir(exist_ok=True)
 
     print('running...')
 
@@ -53,7 +54,7 @@ def main():
                             i += 1
 
     print('done.', end='\n\n')
-    print(f'check \'data/degrade-and-return/*.csv\' for results')
+    print(f'check \'data/degrade-and-return/{template_hash}/*.csv\' for results')
 
 TEMPLATE = """
 {{
@@ -104,8 +105,8 @@ def run(template_hash: str, total_time: float, onset: float, method: str, change
     config = TEMPLATE.format_map(fmt_args)
 
     output, exit_code = Runner(config, total_time).run()
-    name = f'{template_hash}-{total_time}-{onset}-{method}:{change}-{unhealthy}@{unhealthy_radius}'
-    path = f'data/degrade-and-return/{name}.csv'
+    name = f'{total_time}-{onset}-{method}:{change}-{unhealthy}@{unhealthy_radius}'
+    path = f'data/degrade-and-return/{template_hash}/{name}.csv'
     with open(path, 'w+') as f:
         f.write(output)
 
