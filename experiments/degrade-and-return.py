@@ -13,7 +13,7 @@
 #
 #   $TEMPLATE_HASH/$TOTAL_TIME-$ONSET-$METHOD:$CHANGE-$UNHEALTHY@$UNHEALTHY_RADIUS
 
-from runner import Runner
+from runner import bin_hash, Runner
 from hashlib import sha1
 from pathlib import Path
 
@@ -26,6 +26,7 @@ def main():
     unhealthy_radii = [0.075]
 
     hasher = sha1()
+    hasher.update(bin_hash())
     hasher.update(TEMPLATE.encode('utf-8'))
     template_hash = hasher.hexdigest()
 

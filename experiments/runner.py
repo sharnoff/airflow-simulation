@@ -8,6 +8,7 @@
 import os
 import sys
 import subprocess
+from hashlib import sha1
 
 print('\x1b[34m::\x1b[0m building airflow-simulator binary...')
 
@@ -19,6 +20,21 @@ if exit_code != 0:
     sys.exit(exit_code)
 
 print('\x1b[34m::\x1b[0m done building')
+
+_build_hash = None
+
+# Returns the SHA-1 hash of the build binary
+def bin_hash() -> bytes:
+    global _build_hash
+
+    if _build_hash is not None:
+        return _build_hash
+
+    hasher = sha1()
+    with open('target/release/airflow-simulator', 'br') as f:
+        hasher.update(f.read())
+    _build_hash = hasher.digest()
+    return _build_hash
 
 class Runner:
     def __init__(self, config: str, total_time: float, timestep: float | None = None):
