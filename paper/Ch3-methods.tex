@@ -3,21 +3,31 @@
 % vim: set ft=tex:
 \section{Methods}
 
-This section is mostly some temporary filler at the moment, just serving as a place to jot down the
-formulae that we're using inside the simulation \textit{right now}.
+Broadly speaking, this section comes in two parts; first defining the more theoretical underpinnings
+of the model used for simulation, followed by detail on the implementation in practice. There is
+relatively little theory to discuss; much of it comes from prior work.\cite{Foy2018}
+
+At a high level, we use a system of simultaneous equations to determine how the state of the
+simulated lungs evolves, updating in discrete timesteps to give a close approximation to the way a
+similar physical system would behave. \autoref{eq:volume-cons-naive} governs the
+conservation of volume from one timestep to the next, which allows us to obtain greater numerial
+stability than we might otherwise, e.g., with
+$\text{volume}_{t+1} = \text{volume}_t + \text{flow} dt$.
+
+Instead of a ``full'' fluid simulation (e.g., with the Navier-Stokes equations), we use a
+one-dimensional simulation as shown in \citeauthor{Foy2018}, \citeyear{Foy2018}.
 
 \subsection{Simultaneous Equations}
 
-There are essentially four simultaneous equations that we use to evaluate the state of the system at
-a given point in time. This section provides a summary and brief description of each, the first of
-which is the following:
+This section provides a summary and brief description of the four simultaneous equations that govern
+the state of our system, the first of which is the following:
 
 \begin{equation}
     P_{\text{parent}(i)} - P_i = R(i) Q_i
 \end{equation}
 
 \noindent
-which specifies that the pressure differential between the distal end of branch $i$ and its parent
+This specifies that the pressure differential between the distal end of branch $i$ and its parent
 must equal the pressure from the resistance from the flow through this branch $i$. For the ``root''
 branch, $P_{\text{parent}(i)}$ is the pressure at the trachea~--~typically atmospheric pressure.
 
@@ -55,7 +65,7 @@ acinar region of branch $i$.
 The final equation defines the elastic force of each acinar region, relating the pressure it exerts
 on its branch to the volume of the region itself and the pressure outside it:
 
-\begin{equation} \label{eq:acinar-pressure-volume-naive}
+\begin{equation} \label{eq:volume-cons-naive}
     P_i = \frac{1}{C_i} V_i + P_{pl}(t)
 \end{equation}
 
@@ -65,30 +75,58 @@ acinar region) at the current time and $C_i$ is the \textit{compliance} of the a
 branch $i$. The pleural pressure changes over time to mimic human breathing patterns~--~hence why it
 is parameterised by $t$.
 
+\subsection{Modelling in the Abstract} \label{sec:modelling-in-the-abstract}
+
+We use an \textit{implicit} Euler's method to model the system as it progresses: at each timestep,
+our simulation updates its state to the value of an approximate solution to the system of equations
+above. \autoref{eq:volume-cons-naive} provides the necessary bounds to make the method implicit,
+giving us higher accuracy at the cost of implementation complexity.
+
+To solve for an approximate solution at each timestep, we use Newton's method with $f_{\bm{S}}(\bm{x})$ as
+defined below, iterating until $\norm{f_{\bm{S}}(\bm{x})}^2 \le tol$ and $\norm{dx}^2 \le tol$, with
+a tolerance of $10^{-6}$. The two ``inputs''~--~$\bm{S}$ and $\bm{x}$~--~partition the state of the
+model into the variables that are controlled externally (e.g.: pleural pressure, compliance) and
+those that are calculated from the system state (e.g.: acinar volume, airflow). The definitions of
+$\bm{x}$ and $f_{\bm{S}}$ are given by:
+
+\begin{equation*}
+    x = (P_i..., Q_i..., V_i...)
+\end{equation*}
+
+\begin{equation*}
+    f_{\bm{S}}(\bm{x}) =
+        \begin{bmatrix}
+            P_{\text{parent}(i)} - P_i - R(i)Q_i \\
+            \vdots \\
+            Q_i - \sum Q_{\text{child}} \\
+            \vdots \\
+            V_i^t - V_i^{t-1} - dtQ_i^t \\
+            \vdots \\
+            P_i - P_{pl}(t) - \frac{1}{C_i} V_i \\
+            \vdots \\
+        \end{bmatrix}
+\end{equation*}
+
+Note that the values in $\bm{x}$ and equations in $f$ are repeated only as many times as fits; e.g.,
+there are fewer acinar regions than total branches, so there are fewer components in $\bm{x}$ from
+each $V_i$ than from each $Q_i$.
+
+As $\bm{S}$ only exists in the abstract sense, we won't bother to define its structure; all that's
+necessary to know is that it contains every variable referred to in $f$ that is not already given
+explicitly by $\bm{x}$.
+
 \breakpars
 
-At each timestep in the simulation, all of the simultaneous equations are grouped into a single
-optimization function $f(\bm{x}) = (\text{EQ}_1..., \text{EQ}_2..., \text{EQ}_3..., \text{EQ}_4)$,
-where each $\text{EQ}_i$ corresponds to the repeated instances of the $i$th equation above,
-normalized so the right-hand-side equals zero. Thus the solution exists at $\bm{0}$, and we use
-Euler's method to find an approximate solution, within $\norm{f(\bm{x})}^2 \le tol$ and
-$\norm{dx}^2 \le tol$, with a tolerance of $10^{-6}$.
+It's worth noting that in practice, the above definitions are only \textit{nearly} correct; a few
+adjustments were made to the inputs and equations to mitigate limitations from floating-point
+accuracy. These are discussed in the \hyperref[sec:units-and-numerical-stability]{next section}.
 
-The input $\bm{x}$ is arranged with the values $(P..., Q..., V...)$ for each applicable
-branch~--~i.e. using $P$ and $Q$ from all branches and $V$ from each acinar region.
+\subsection{Units \& Modified Equations for Numerical Stability} \label{sec:units-and-numerical-stability}
 
-\breakpars
-
-The above descriptions are \textit{nearly} correct~--~they would work, but there were a few
-adjustments made to the inputs and equations in practice for better numerical stability. These are
-discussed in the \hyperref[sec:units-and-numerical-stability]{next section}.
-
-\subsection{Units \& Numerical stability} \label{sec:units-and-numerical-stability}
-
-It is worth making explict the units used for each value. After careful consideration, these were
-considered to provide the best trade-off of familiar units and those with values of magnitude close
-to one, where floating-point accuracy is maximized. As we will see momentarily, the spread was still
-quite wide. The chosen units were:
+It is worth making explict the units used for each value in our simultaneous equations. After
+careful consideration, these were considered to provide the best trade-off of familiar units and
+those with values of magnitude close to one, where floating-point accuracy is maximized. As we will
+see momentarily, the spread was still quite wide. The chosen units were:
 
 {
     % Add a bit more spacing within the rows of the table
@@ -144,7 +182,7 @@ where $P_{\text{atm}}$ is is atmospheric pressure; and:
 
 \noindent
 Note that the definition of $\hat{V}$ would be the result of simply substituting $\hat{P}$ for $P$
-in \ref{eq:acinar-pressure-volume-naive}. Applying these substitutions gives the following
+in \ref{eq:volume-cons-naive}. Applying these substitutions gives the following
 equations, equivalent to their counterparts above:
 
 \begin{equation}
@@ -167,3 +205,26 @@ Representing the pressure and volume by their \textit{offset} from values at atm
 causes them to cluster much closer to zero~--~the magnitude of the mean is significantly decreased,
 relative to the variance of the values. This of course greatly improves the accuracy of each Euler
 step.
+
+Note: The same substitutions also apply to our representations of the state of the model \& the
+optimization function used for Newton's method, as shown in \autoref{sec:modelling-in-the-abstract}.
+
+\subsection{Sparse Matrices}
+
+A key observation that can aid in simulation speed is that we can represent the Jacobean of our
+optimization function $f$ in $\mathcal{O}(n)$ space using sparse matrices~--~which is necessary to
+allow simulation of the lungs up to a high depth without a quadratic blow-up in runtime.
+
+\todo{
+    In order to flesh this out, it would be good to clarify whether there's any advantage to be
+    gained from LU decomposition (or otherwise) when using this sparse representation. I'm actually
+    not currently sure that that's true- which would negate a lot of the potential benefit for these
+    sparse matrices.
+}
+
+\subsection{Procedural Lung Generation \& Configuration}
+
+\todo{
+    This section will generally talk about the JSON configuration file that allows us to define the
+    structure of the lung \& schedule degradation.
+}
