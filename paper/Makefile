@@ -6,3 +6,4 @@ figs/sparse/%.tikz.tex: figs/sparse/%.build.json
 
 clean:
 	latexmk -c
+	rm figs/sparse/*.tikz.tex
