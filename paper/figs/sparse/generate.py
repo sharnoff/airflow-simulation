@@ -1,12 +1,15 @@
 #!/bin/python
 #
-# Helper script for generating the TikZ figures for sparse matrices. Called by the paper's makefile
+# Helper script for generating the PNG figures for sparse matrices. Called by the paper's makefile
 # for each JSON "build" description in turn.
+#
+# Depends on [PyPNG](https://pypi.org/project/pypng/)
 #
 # The JSON build format is pretty simple for the most part. It consists of two fields:
 #  * 'model' defines the model to use. Currently, only { "kind": "symmetric", "depth": <N> }
 #  * 'layout' defines the layout of the jacobean, with lists 'vars' and 'eqns' to define the order
 #     of the variables and equations, respectively.
+#  * 'scale' defines the number of pixels to occupy for each entry in the matrix
 #
 # Variables are named "<branch>.<name>" where <branch> is the index of the branch, starting from
 # zero, and <name> is one of "P", "Q", or "V" (corresponding to pressure, flow, or volume).
@@ -21,8 +24,10 @@
 #
 # Existing examples should hopefully make this clear.
 
-import json
 import argparse
+import json
+import numpy as np
+import png # from PyPNG - must be installed to build the paper from source.
 from typing import Callable
 
 def main():
@@ -36,28 +41,30 @@ def main():
     if not buildfile.endswith('.build.json'):
         raise Exception(f"Build file must end in .build.json, got: {buildfile}")
 
-    # outfile = buildfile : s/.build.json$/.tikz.tex/
-    outfile = buildfile[:len(buildfile) - len('.build.json')] + '.tikz.tex'
+    # outfile = buildfile : s/.build.json$/.png/
+    outfile = buildfile[:len(buildfile) - len('.build.json')] + '.png'
 
     # Read the build file
     with open(buildfile, 'r') as f:
         build_desc = json.load(f)
 
-    extra_fields = get_extra_fields(build_desc, ok = ['model', 'layout'])
+    extra_fields = get_extra_fields(build_desc, ok = ['scale', 'model', 'layout'])
     if extra_fields:
         raise Exception(f"unexpected JSON fields {list(extra_fields)}")
 
+    if "scale" not in build_desc or not isinstance(build_desc["scale"], int):
+        raise Exception("expected 'scale' field as an integer")
     if "model" not in build_desc or not isinstance(build_desc["model"], dict):
         raise Exception("expected 'model' field as an object")
     if "layout" not in build_desc or not isinstance(build_desc["layout"], dict):
         raise Exception("expected 'layout' field as an object")
 
+    scale = build_desc["scale"]
     model = Model(build_desc["model"])
     layout = Layout(build_desc["layout"])
 
-    tikz_str = tikz_to_string(generate_values(model, layout))
-    with open(outfile, 'w+') as f:
-        f.write(tikz_str)
+    png_img = values_to_png(scale, generate_values(model, layout))
+    png_img.save(outfile)
 
 # Helper function for returning the unused fields in a JSON dict, so that we can appropriately
 # return an error if there are any.
@@ -260,20 +267,26 @@ def generate_values(model: Model, layout: Layout) -> list[list[int]]:
 
     return [row(eqn) for eqn in equations]
 
-def tikz_to_string(values: list[list[int]]) -> str:
-    def pad(v: int) -> str:
-        return f'|[{v}]|'
+def values_to_png(scale: int, values: list[list[int]]) -> png.Image:
+    row_height = len(values)
+    col_width = len(values[0])
 
-    def row(vs: list[int]) -> str:
-        return '    ' + ' & '.join([pad(v) for v in vs]) + r' \\'
+    pix_height = scale * row_height
+    pix_width = scale * col_width
 
-    comment = "% Adapted from https://tex.stackexchange.com/a/493402"
-    begin_tikz = r"\begin{tikzpicture}[0/.style={draw,ultra thin},1/.style={0,fill=black}]"
-    begin_matrix = r"\matrix[matrix of nodes,cells={minimum size=1.5em,anchor=center}]{"
-    content = '\n'.join([row(vs) for vs in values])
-    end="};\n\\end{tikzpicture}"
+    pixels = np.zeros((pix_width, pix_height), dtype=np.uint8)
+    pixels.fill(255)
 
-    return f"{comment}\n{begin_tikz}\n{begin_matrix}\n{content}\n{end}"
+    filled_pixel = np.zeros((scale, scale), dtype=np.uint8)
+
+    for row in range(row_height):
+        for col in range(col_width):
+            if values[row][col] == 0:
+                continue
+
+            pixels[scale*row:scale*(row+1), scale*col:scale*(col+1)] = filled_pixel
+
+    return png.from_array(pixels, 'L') # 'L' for greyscale
 
 if __name__ == '__main__':
     main()
