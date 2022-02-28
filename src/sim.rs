@@ -41,7 +41,7 @@ impl SimulationEnvironment {
             let branch = &mut tree[id];
 
             let tube = branch.tube_mut();
-            tube.flow_rate = 0.0;
+            tube.flow_in = 0.0;
             tube.end_pressure = env.tracheal_pressure;
 
             match branch {
@@ -252,7 +252,7 @@ impl SimulationEnvironment {
         // Because the equations are *mostly* linear, we're mostly filling slots with 1 or -1.
         // There are a few that aren't, the pressure delta equation has the nasty resistance(Q) * Q
         // term in it. The only derivative we care about there is w.r.t. the flow. That's given by
-        // the `flow_resistance_derivative` method.
+        // the `flow_resistance_term_derivative` method.
         //
         // To actually add all of the equations, we'll mostly follow the way that the output in
         // `optimization_func_at` is set. That way, it should be easier to track (and it gives us a
@@ -409,7 +409,7 @@ fn state_vector(tree: &BranchTree) -> DVector<Float> {
 
         let tube = branch.tube();
         vec[p_base + index] = tube.end_pressure - ATMOSPHERIC_PRESSURE;
-        vec[q_base + index] = tube.flow_rate;
+        vec[q_base + index] = tube.flow_in;
 
         match branch {
             Branch::Bifurcation(b) => {
@@ -459,7 +459,7 @@ fn set_state_from_vector(tree: &mut BranchTree, vec: &DVector<Float>) {
 
         let tube = branch.tube_mut();
         tube.end_pressure = vec[p_base + index] + ATMOSPHERIC_PRESSURE;
-        tube.flow_rate = vec[q_base + index];
+        tube.flow_in = vec[q_base + index];
         drop(tube);
 
         match branch {
@@ -612,7 +612,7 @@ mod tests {
             }
 
             let tube = branch.tube_mut();
-            tube.flow_rate = rng.gen();
+            tube.flow_in = rng.gen();
             tube.end_pressure = rng.gen();
         }
 
@@ -627,7 +627,7 @@ mod tests {
             }
 
             let tube = branch.tube_mut();
-            tube.flow_rate = 0.0;
+            tube.flow_in = 0.0;
             tube.end_pressure = 0.0;
         }
 

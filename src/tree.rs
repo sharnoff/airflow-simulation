@@ -117,7 +117,7 @@ impl BranchTree {
                     angle_from_parent: info.angle_from_parent,
                     radius: info.tube_radius,
                     length: info.length,
-                    flow_rate: 0.0,
+                    flow_in: 0.0,
                     end_pressure: 0.0,
                 };
 
@@ -163,7 +163,7 @@ impl BranchTree {
                 angle_from_parent: start.total_angle,
                 radius: start.tube_radius,
                 length: start.length,
-                flow_rate: UNSET_FLOW_RATE,
+                flow_in: UNSET_FLOW_RATE,
                 end_pressure: UNSET_END_PRESSURE,
             },
             left_child: left,

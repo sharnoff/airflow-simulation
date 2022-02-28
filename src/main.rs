@@ -104,9 +104,9 @@ pub struct Tube {
     /// The velocity at which air is flowing into the tube, away from the trachea (positive if
     /// breathing in)
     ///
-    /// Units of mm/s
-    flow_rate: Float,
-    /// The pressure at the distal end of the tube (i.e. away from the trachea), in MegaPascals
+    /// Units of m³/s
+    flow_in: Float,
+    /// The pressure at the distal end of the tube (i.e. away from the trachea), in Pascals
     ///
     /// We don't need to record the pressure at the other end because that's given by this one's
     /// parent (or the root pressure, if this has no parent)
@@ -527,7 +527,9 @@ impl AppSettings<'_> {
                         }
                     }
 
-                    let flow_out = -path_root.tube().flow_rate * 1e9;
+                    let mut flow_out = -path_root.tube().flow_in;
+                    // Convert flow m³/s -> mm³/s
+                    flow_out *= 1e9;
                     flow_and_volume_values.push(flow_out);
 
                     // Find the total volume:
@@ -543,7 +545,7 @@ impl AppSettings<'_> {
                         }
                     }
 
-                    // Convert to mm³/s
+                    // Convert volume m³ -> mm³
                     volume *= 1e9;
                     flow_and_volume_values.push(volume);
                 }
