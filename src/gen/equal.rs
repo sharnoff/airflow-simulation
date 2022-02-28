@@ -23,7 +23,9 @@ impl BranchGenerator for EqualChildGenerator {
         // Arbitrary. Results in 1/3 of the circle between the children
         let base_angle = float::FRAC_PI_3;
 
-        let can_continue = depth + 1 < self.max_depth;
+        // We add 2 here because `depth` starts at zero (when visually, it should start at one),
+        // and `can_continue` will add children, which increases the depth by one.
+        let can_continue = depth + 2 < self.max_depth;
 
         let left = ChildInfo {
             tube_radius,
