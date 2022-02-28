@@ -1,0 +1,50 @@
+% Ch4-results.tex
+%
+% vim: set ft=tex:
+\section{Results} \label{sec:results}
+
+\todo{
+    This section doesn't have anything yet. Here's an outline of what I'm currently planning on
+    putting in it, in a rough order:
+}
+
+\begin{itemize}
+    \item Numerical stability of extended experiments (i.e. ``we simulated 100/1000/10k seconds
+        worth, and it stayed the same'')
+        \begin{itemize}
+            \item Currently, this would be extra-necessary to discuss because we aren't
+                \textit{necessarily} starting in a solution to the system.
+            \item Could also be good to have some comparisons of different starting volumes,
+                just so that it's evident that they all converge very quickly.
+        \end{itemize}
+    \item Comparison of interpolation functions
+        \begin{itemize}
+            \item Good to get sooner so that it contextualizes the remaining experiments
+            \item Also should mention here: reasoning for removing the kink from tanh,
+                specifically the way that instantaneous changes in the state of the lungs causes
+                instant reactions in the flow.
+        \end{itemize}
+    \item Stable flow characteristics of lungs with varying degradation
+        \begin{itemize}
+            \item Basically just want to point out the ways that the curve starts to become
+                lopsided and out of phase from the pleural pressure, with particular emphasis on
+                the way that the effect starts rapidly heightening as the constriction
+                approaches 10\% (about~--~I haven't tested beyond that, which I should).
+        \end{itemize}
+    \item Onset and recovery from airflow constriction. Key things are:
+        \begin{itemize}
+            \item Just showing off the simple graphs, to get a sense of what's going on
+            \item Slow recovery reduces strain~--~we can get abnormally high airflow if pleural
+                pressure lines up with suddenly-reduced constriction 
+            \item Relating to above: I'd like to have a version of the crazy graph~--~the one
+                where it's all just ``degrade and recover'', with each startpoint being offset
+                by 0.5s from the previous one. It would be really good to align that with some
+                kind of chart showing the minimum and maximum flow velocity reached (on top of
+                the normal min/max), to show the kind of chance of risk we run~--~and how much
+                that reduces as the recovery becomes slower.
+            \item Flow characteristics align with those from the current level of constriction
+                (i.e. on the way to 10\%, the area around 20\% constriction tends to mimic the
+                flow characteristics from 20\% at that point)
+            \item The above points are probably three distinct sub-sections.
+        \end{itemize}
+\end{itemize}

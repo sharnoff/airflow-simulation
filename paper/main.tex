@@ -13,6 +13,7 @@
 \usepackage{amsmath}
 \usepackage{bm}
 \usepackage{changepage}
+\usepackage{float}
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{natbib}
@@ -34,6 +35,13 @@
 % Outputs the norm / magnitude / absolute value of the contents - || contents ||
 % Taken from https://tex.stackexchange.com/a/107190
 \newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+
+% Usage \tightbox { content, e.g. \includegraphics{..} }
+%
+% Creates a box that exactly borders the content
+\newcommand{\tightbox}[1]{%
+    {\setlength{\fboxsep}{0pt}\fbox{#1}}%
+}
 
 \newcommand{\todo}[1]{%
     \begin{adjustwidth}{-0.5cm}{-0.5cm}{%
@@ -83,6 +91,9 @@
 
 \newpage
 \input{Ch3-methods.tex}
+
+\newpage
+\input{Ch4-results.tex}
 
 \newpage
 \bibliography{ref.bib}{}
