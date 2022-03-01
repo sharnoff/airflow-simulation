@@ -97,9 +97,9 @@ pub struct Tube {
     /// The ange of the tube, relative to its parent. Measured in radians, always within 0..2π
     angle_from_parent: Float,
 
-    /// The radius of the tube, in mm
+    /// The radius of the tube, in m
     radius: Float,
-    /// The length of the tube, in mm
+    /// The length of the tube, in m
     length: Float,
     /// The velocity at which air is flowing into the tube, away from the trachea (positive if
     /// breathing in)
@@ -174,7 +174,7 @@ const ATMOSPHERIC_PRESSURE: Float = 101_325.0;
 /// person
 const TOTAL_LUNG_VOLUME: Float = 0.002;
 
-/// Length of the trachea, in meters. Average length is around 12cm
+/// Length of the trachea, in meters. Average length is around 12cm, which is 0.12m
 const TRACHEA_LENGTH: Float = 0.12;
 
 /// Radius of the trachea, in meters. Seems like average diameter is around 1.5-2cm. Picked 2cm
@@ -199,9 +199,9 @@ struct PleuralPressureConfig {
 impl Default for PleuralPressureConfig {
     fn default() -> Self {
         PleuralPressureConfig {
-            init: 0.0,
-            lo: -500.0,
-            hi: 1500.0,
+            init: -1500.0,
+            lo: -2000.0,
+            hi: -1000.0,
             period: 4.0,
         }
     }
@@ -550,12 +550,11 @@ impl AppSettings<'_> {
                     flow_and_volume_values.push(volume);
                 }
 
-                let mut line = format!("{},{},{}", time, sim_env.pleural_pressure, deg);
+                // We ensure there's at least two decimal places because pasting into Google Sheets
+                // will sometimes get messed up if there's no decimal place in the number.
+                let mut line = format!("{:.2},{:.2},{:.2}", time, sim_env.pleural_pressure, deg);
                 for v in flow_and_volume_values {
                     line.push(',');
-                    // We ensure there's at least two decimal places because pasting into Google
-                    // Sheets will sometimes get messed up if there's no decimal place in the
-                    // number.
                     write!(line, "{:.2}", v).unwrap();
                 }
 

@@ -26,7 +26,7 @@ pub struct SimulationEnvironment {
 }
 
 impl SimulationEnvironment {
-    /// Resets all of the airflow and pressure in the tree, ignoring the pleural pressure
+    /// Resets all of the airflow and pressure in the tree
     ///
     /// The airflow is all set to zero and the pressure is set to equal the tracheal pressure. This
     /// will only be stable if the pleural pressure is not zero -- pleural pressure *is* taken into

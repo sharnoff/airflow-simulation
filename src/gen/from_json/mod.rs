@@ -315,7 +315,7 @@ impl FromJsonGenerator {
             total_angle: -float::FRAC_PI_2, // point downwards
             pos: -most_negative_point,
             length: initial_branch.length,
-            tube_radius: initial_branch.abnormal_radius,
+            tube_radius: initial_branch.nominal_radius,
         };
 
         let upper_right = most_positive_point - most_negative_point;
