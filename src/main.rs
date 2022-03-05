@@ -646,7 +646,7 @@ impl PleuralPressureConfig {
     /// We start with a pressure of `self.init` at time 0s, and then increase from there (i.e.
     /// breathe out).
     fn at_time(&self, time: Float) -> Float {
-        assert!((self.lo..self.hi).contains(&self.init));
+        assert!((self.lo..=self.hi).contains(&self.init));
 
         let amplitude = (self.hi - self.lo) / 2.0;
         let center = (self.hi + self.lo) / 2.0;
