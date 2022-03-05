@@ -1,0 +1,11 @@
+{
+	"config": {
+		"branch_length_decrease": 0.75,
+		"branch_radius_decrease": 0.75,
+		"split_angle": 0.8,
+		"max_depth": 2
+	},
+	"root": {
+		"type": "auto"
+	}
+}
