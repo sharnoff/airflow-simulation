@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::{
-    float, EnvConfig, Schedule, ATMOSPHERIC_PRESSURE, TOTAL_LUNG_VOLUME, TRACHEA_LENGTH,
+    float, EnvConfig, Schedule, ATMOSPHERIC_PRESSURE, DEFAULT_TOTAL_LUNG_VOLUME, TRACHEA_LENGTH,
     TRACHEA_RADIUS,
 };
 use eyre::{eyre, Context};
@@ -34,6 +34,7 @@ pub struct FromJsonGenerator {
     by_parent_id: Vec<Branch>,
     upper_right: Point,
     start_parent_info: ParentInfo,
+    total_volume: Float,
     env_config: EnvConfig,
     schedule: Schedule,
 }
@@ -87,6 +88,11 @@ impl FromJsonGenerator {
         self.upper_right
     }
 
+    /// Returns the total volume of the generated model
+    pub fn total_volume(&self) -> Float {
+        self.total_volume
+    }
+
     /// Produces the configured environment information
     pub fn env_config(&self) -> EnvConfig {
         self.env_config
@@ -102,7 +108,10 @@ impl FromJsonGenerator {
     // This function needs to generate the entire tree as a first-pass in order to determine some
     // of the scaling information (e.g. distribution of compliance, center point, etc.)
     fn from_parsed(parsed: ParsedConfig) -> eyre::Result<Self> {
-        let total_volume = parsed.config.total_volume.unwrap_or(TOTAL_LUNG_VOLUME);
+        let total_volume = parsed
+            .config
+            .total_volume
+            .unwrap_or(DEFAULT_TOTAL_LUNG_VOLUME);
         let trachea_length = parsed.config.trachea_length.unwrap_or(TRACHEA_LENGTH);
         let trachea_radius = parsed.config.trachea_radius.unwrap_or(TRACHEA_RADIUS);
 
@@ -114,8 +123,14 @@ impl FromJsonGenerator {
 
         // Check the environment config
         let EnvConfig {
+            initial_volume,
             pleural_pressure: pressure_cfg,
         } = &parsed.env;
+
+        if matches!(initial_volume, &Some(v) if v < 0.0) {
+            Err(eyre!("initial volume must be >= 0"))
+                .context("invalid value at .env.initial_volume in JSON model spec")?;
+        }
 
         let result = if pressure_cfg.lo >= pressure_cfg.hi {
             Err(eyre!(
@@ -324,6 +339,7 @@ impl FromJsonGenerator {
             by_parent_id,
             upper_right,
             start_parent_info,
+            total_volume,
             env_config: parsed.env,
             schedule: parsed.schedule,
         })

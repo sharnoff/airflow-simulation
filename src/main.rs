@@ -172,7 +172,7 @@ const ATMOSPHERIC_PRESSURE: Float = 101_325.0;
 /// We'll say that the total volume of the lungs is about 2 liters. It's not incredibly accurate,
 /// but close enough so that we're talking about measurements that probably correspond to a real
 /// person
-const TOTAL_LUNG_VOLUME: Float = 0.002;
+const DEFAULT_TOTAL_LUNG_VOLUME: Float = 0.002;
 
 /// Length of the trachea, in meters. Average length is around 12cm, which is 0.12m
 const TRACHEA_LENGTH: Float = 0.12;
@@ -182,9 +182,11 @@ const TRACHEA_LENGTH: Float = 0.12;
 const TRACHEA_RADIUS: Float = 0.01;
 
 #[derive(Debug, Copy, Clone, Default, Deserialize)]
+#[serde(default)]
 pub struct EnvConfig {
-    #[serde(default)]
     pleural_pressure: PleuralPressureConfig,
+    /// The initial total volume of the lungs, in m³
+    initial_volume: Option<Float>,
 }
 
 #[derive(Debug, Copy, Clone, Deserialize)]
@@ -199,9 +201,9 @@ struct PleuralPressureConfig {
 impl Default for PleuralPressureConfig {
     fn default() -> Self {
         PleuralPressureConfig {
-            init: -1500.0,
-            lo: -2000.0,
-            hi: -1000.0,
+            init: 0.0,
+            lo: -25_000.0,
+            hi: 0.0,
             period: 4.0,
         }
     }
@@ -333,10 +335,11 @@ type DisplayCallback<'a> = Box<dyn 'a + FnMut(Float, &BranchTree, &SimulationEnv
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
     fn run(&self) {
-        let (tree_pair, bounds, env_cfg, sched) = self.make_tree_and_bounds().unwrap_or_else(|e| {
-            eprintln!("{:?}", e.wrap_err("failed to construct model"));
-            exit(1)
-        });
+        let (tree_pair, bounds, total_volume, env_cfg, sched) =
+            self.make_tree_and_bounds().unwrap_or_else(|e| {
+                eprintln!("{:?}", e.wrap_err("failed to construct model"));
+                exit(1)
+            });
 
         let mut sim_env = SimulationEnvironment {
             pleural_pressure: env_cfg.pleural_pressure.at_time(0.0),
@@ -352,7 +355,9 @@ impl AppSettings<'_> {
         let mut deg_factor = sched.degradation_at_time(0.0);
         tree.set_structure(&lerp(&nominal_state, &degraded_state, deg_factor));
 
-        sim_env.reset(&mut tree);
+        let initial_volume = env_cfg.initial_volume.or(total_volume);
+
+        sim_env.reset(&mut tree, initial_volume);
 
         let mut callback = match &self.display_method {
             cli::DisplayMethod::Csv { file, add_paths } => self.csv_callback(*file, &add_paths),
@@ -388,28 +393,44 @@ impl AppSettings<'_> {
         }
     }
 
-    /// Creates the `BranchTree` and returns the upper-right corner of the rectangle of the minimum
-    /// view into it
+    /// Creates the `BranchTree` and returns a few relevant items:
+    ///
+    /// * The nominal and degraded `BranchTree`s;
+    /// * The upper-right corner of the rectangle of the minimum view into the tree(s);
+    /// * Configuration of the simulation environment;
+    /// * The expected total volume of the tree, if provided; and
+    /// * A schedule for determining the degradation amount at each point in time
     ///
     /// It is assumed that the tree shouldn't display further down or left than (0,0).
-    fn make_tree_and_bounds(&self) -> eyre::Result<(TreePair, Point, EnvConfig, Schedule)> {
+    fn make_tree_and_bounds(
+        &self,
+    ) -> eyre::Result<(TreePair, Point, Option<Float>, EnvConfig, Schedule)> {
         match &self.model {
             cli::Model::FromJson { file } => Self::make_json_tree(&file),
             cli::Model::Symmetric { depth } => Ok(Self::make_symmetric_tree(*depth)),
         }
     }
 
-    fn make_json_tree(file: &Path) -> eyre::Result<(TreePair, Point, EnvConfig, Schedule)> {
+    fn make_json_tree(
+        file: &Path,
+    ) -> eyre::Result<(TreePair, Point, Option<Float>, EnvConfig, Schedule)> {
         let gen = FromJsonGenerator::from_file(file)?;
         let start = gen.start_parent_info();
         let pair = TreePair {
             nominal: BranchTree::from_generator(start, &gen, false),
             degraded: BranchTree::from_generator(start, &gen, true),
         };
-        Ok((pair, gen.upper_right(), gen.env_config(), gen.schedule()))
+        let total_volume = Some(gen.total_volume());
+        Ok((
+            pair,
+            gen.upper_right(),
+            total_volume,
+            gen.env_config(),
+            gen.schedule(),
+        ))
     }
 
-    fn make_symmetric_tree(depth: usize) -> (TreePair, Point, EnvConfig, Schedule) {
+    fn make_symmetric_tree(depth: usize) -> (TreePair, Point, Option<Float>, EnvConfig, Schedule) {
         const TOTAL_HEIGHT: Float = TRACHEA_LENGTH * 2.7;
         const TOTAL_WIDTH: Float = TOTAL_HEIGHT * 1.3;
 
@@ -429,7 +450,7 @@ impl AppSettings<'_> {
         // atmospheric pressure
         let compliance = {
             let n_acinar = 1 << (depth + 1);
-            let volume_per = TOTAL_LUNG_VOLUME / n_acinar as Float;
+            let volume_per = DEFAULT_TOTAL_LUNG_VOLUME / n_acinar as Float;
 
             // volume = compliance * (pressure - pleural pressure), therefore:
             //
@@ -464,7 +485,13 @@ impl AppSettings<'_> {
             degraded: tree,
         };
 
-        (pair, upper_right, EnvConfig::default(), Schedule::default())
+        (
+            pair,
+            upper_right,
+            None,
+            EnvConfig::default(),
+            Schedule::default(),
+        )
     }
 
     fn csv_callback<'p>(&self, file: Option<&str>, paths: &'p [TreePath]) -> DisplayCallback<'p> {
@@ -528,8 +555,8 @@ impl AppSettings<'_> {
                     }
 
                     let mut flow_out = -path_root.tube().flow_in;
-                    // Convert flow m³/s -> mm³/s
-                    flow_out *= 1e9;
+                    // Convert flow m³/s -> L/s
+                    flow_out *= 1e3;
                     flow_and_volume_values.push(flow_out);
 
                     // Find the total volume:
@@ -545,8 +572,8 @@ impl AppSettings<'_> {
                         }
                     }
 
-                    // Convert volume m³ -> mm³
-                    volume *= 1e9;
+                    // Convert volume m³ -> L
+                    volume *= 1e3;
                     flow_and_volume_values.push(volume);
                 }
 
@@ -555,7 +582,7 @@ impl AppSettings<'_> {
                 let mut line = format!("{:.2},{:.2},{:.2}", time, sim_env.pleural_pressure, deg);
                 for v in flow_and_volume_values {
                     line.push(',');
-                    write!(line, "{:.2}", v).unwrap();
+                    write!(line, "{:.4}", v).unwrap();
                 }
 
                 writeln!(writer, "{}", line).expect("failed to write CSV line");

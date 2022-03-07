@@ -22,7 +22,11 @@ pub struct RootGenerationConfig {
 
     /// The total volume of all acinar regions in the lungs, in m³
     ///
-    /// If present, overrides the default given by [`TOTAL_LUNG_VOLUME`]
+    /// If present, overrides the default given by [`DEFAULT_TOTAL_LUNG_VOLUME`]
+    ///
+    /// Please note that this does not affect the volumes given by [`EnvConfig.initial_volume`].
+    ///
+    /// [`EnvConfig.initial_volume`]: crate::EnvConfig
     pub total_volume: Option<Float>,
 
     /// The length of the trachea, in meters

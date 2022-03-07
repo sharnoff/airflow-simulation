@@ -28,37 +28,84 @@ pub struct SimulationEnvironment {
 impl SimulationEnvironment {
     /// Resets all of the airflow and pressure in the tree
     ///
-    /// The airflow is all set to zero and the pressure is set to equal the tracheal pressure. This
-    /// will only be stable if the pleural pressure is not zero -- pleural pressure *is* taken into
-    /// account for determining acinar region volumes, but does not affect flow rate.
-    pub fn reset(&self, tree: &mut BranchTree) {
-        // This is generally pretty simple; we're just applying a pre-set value across the entire
-        // tree.
+    /// The airflow is all set to zero and the volume of each acinar region is calculated to sum to
+    /// the target volume, distributed into each acinar region according to its compliance relative
+    /// to the others. All of the pressure values are set to match the volume of the acinar regions
+    /// and the current pleural pressure.
+    ///
+    /// If the target volume is not given, the tree will be set with atmospheric pressure.
+    pub fn reset(&self, tree: &mut BranchTree, target_volume: Option<Float>) {
+        // Returns the total compliance (i.e. summed) of the subtree rooted at the given branch
         //
-        // The only *mildly* complicated bit is that we need to calculate the volumes of acinar
-        // regions, but there's a pretty simple formula for that.
-        fn set_all(env: &SimulationEnvironment, tree: &mut BranchTree, id: BranchId) {
+        // We use this instead of e.g., looping through all branches, because adding together terms
+        // with similar magnitude will reduce floating-point inaccuracy. Because the outer function
+        // (`SimulationEnvironment::reset`) is only run once, at startup, we're happy to pay the
+        // penalty of running in O(n log n) time instead of O(n) to get the benefit of more
+        // accurate compliance measurements.
+        fn subtree_compliance(tree: &BranchTree, id: BranchId) -> Float {
+            match &tree[id] {
+                Branch::Bifurcation(b) => {
+                    subtree_compliance(tree, b.left_child) + subtree_compliance(tree, b.right_child)
+                }
+                Branch::Acinar(b) => b.compliance,
+            }
+        }
+
+        let internal_pressure: Float;
+        let acinar_pressure_differential: Float;
+
+        if let Some(target) = target_volume {
+            let total_compliance = subtree_compliance(tree, tree.root_id());
+
+            // Using the total compliance, determine the ratio we use to set the volume of an acinar
+            // region from its compliance.
+            //
+            // Essentially, because `volume = compliance * pressure`, we're determining the pressure
+            // we'd need to have at all acinar regions in order to get the desired volume.
+            acinar_pressure_differential = target / total_compliance;
+            // From this and the pleural pressure, we can then derive the actual pressure inside the
+            // lungs.
+            //
+            // This doesn't matter so much, because only volume is carried over from one simulation
+            // tick to the next.
+            internal_pressure = acinar_pressure_differential - self.pleural_pressure;
+        } else {
+            internal_pressure = ATMOSPHERIC_PRESSURE;
+            acinar_pressure_differential = ATMOSPHERIC_PRESSURE - self.pleural_pressure;
+        };
+
+        // The acinar pressure differential is passed separately to reduce floating point
+        // inaccuracy
+        fn set_all(
+            tree: &mut BranchTree,
+            pressure: Float,
+            acinar_pressure_differential: Float,
+            id: BranchId,
+        ) {
             let branch = &mut tree[id];
 
             let tube = branch.tube_mut();
             tube.flow_in = 0.0;
-            tube.end_pressure = env.tracheal_pressure;
+            tube.end_pressure = pressure;
 
             match branch {
                 &mut Branch::Bifurcation(b) => {
-                    set_all(env, tree, b.left_child);
-                    set_all(env, tree, b.right_child);
+                    set_all(tree, pressure, acinar_pressure_differential, b.left_child);
+                    set_all(tree, pressure, acinar_pressure_differential, b.right_child);
                 }
                 Branch::Acinar(b) => {
-                    // The volume of the acinar region is essentially just given by this formula,
-                    // no fancy work required:
-                    b.volume = b.compliance * (b.tube.end_pressure - env.pleural_pressure);
+                    b.volume = b.compliance * acinar_pressure_differential;
                 }
             }
         }
 
         let root_id = tree.root_id();
-        set_all(self, tree, root_id);
+        set_all(
+            tree,
+            internal_pressure,
+            acinar_pressure_differential,
+            root_id,
+        );
     }
 
     /// Updates the state of the tree, given the external pressures
