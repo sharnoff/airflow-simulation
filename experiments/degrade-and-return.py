@@ -113,7 +113,5 @@ def run(template_hash: str, total_time: float, onset: float, method: str, change
     if exit_code != 0:
         print(f'warning: trial {name} exited with code {exit_code}')
 
-    pass
-
 if __name__ == '__main__':
     main()
