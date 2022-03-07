@@ -7,7 +7,7 @@ from hashlib import sha1
 from pathlib import Path
 
 def main():
-    total_time = 24 # 20s to even out, +4s for a fully breath cycle
+    total_time = 28 # 20s to even out, +8s for a couple full breaths
     depth = 6
     constrictions = [0, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 

@@ -35,20 +35,22 @@ experiment.
 
 We also considered that the initial volume used in experimentation is not guaranteed to be accurate
 to the ``typical'' volume at that point in the breathing cycle~--~a fact that becomes visible with
-higher degrees of airway constriction (discussed later in this section). Therefore, we also
-experimented with significantly changed initial volumes, as shown above in
-\autoref{fig:different-initial-volumes}. The system quickly recovers from pertubations when
-airflow is unrestricted, but is slower to return to the typical volume when resistance prevents the
+higher degrees of airway constriction (discussed in \autoref{sec:flow-characteristics}). Therefore,
+we also experimented with significantly changed initial volumes, as shown above in
+\autoref{fig:different-initial-volumes}. The system quickly recovers from pertubations when airflow
+is unrestricted, but is slower to return to the typical volume when resistance prevents the
 correction from being made more quickly.
 
-\subsection{Flow characteristics under varied constriction}
+\subsection{Flow characteristics under varied constriction} \label{sec:flow-characteristics}
 
 \begin{figure}[ht!]
     \centering
     \begin{tikzpicture}
         \input{figs/constricted-flow-characteristics.pgfplot}
     \end{tikzpicture}
-    \caption{ todo -- needs colors \& should be twice as long. }
+    \caption{
+        Stable flow during two breathing cycles with varied levels of whole-lung airway constriction
+    }
     \label{fig:constricted-flow-characteristics}
 \end{figure}
 

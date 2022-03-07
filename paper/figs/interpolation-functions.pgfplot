@@ -10,18 +10,20 @@
     xtick={0,0.2,0.4,0.6,0.8,1},
     ytick={0,0.2,0.4,0.6,0.8,1},
     legend pos=south east,
+    width=.6\textwidth,
+    every axis plot/.append style={thick},
 ]
 
-    \addplot[mark=none,samples=2] { x };
+    \addplot[mark=none,color=softred,samples=2] { x };
     \addlegendentry{Linear}
 
-    \addplot[mark=none,samples=300] { .5 * tanh(6*x-3)/tanh(3) + .5 };
+    \addplot[mark=none,color=softgreen,samples=300] { .5 * tanh(6*x-3)/tanh(3) + .5 };
     \addlegendentry{Tanh}
     
-    \addplot[mark=none,samples=300] { .5 * (1 - cos(pi * deg(x))) };
+    \addplot[mark=none,color=softblue,samples=300] { .5 * (1 - cos(pi * deg(x))) };
     \addlegendentry{Trigonometric}
     
-    \addplot[mark=none,samples=300] { 3*x^2 - 2*x^3 };
+    \addplot[mark=none,color=softorange,samples=300] { 3*x^2 - 2*x^3 };
     \addlegendentry{Cubic}
 
 \end{axis}
