@@ -20,6 +20,7 @@ mod img;
 mod point;
 mod sim;
 mod tree;
+mod vec_utils;
 
 pub use branch_id::BranchId;
 

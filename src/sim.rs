@@ -1,7 +1,7 @@
 //! The actual simulation
 
-use crate::{float, Branch, BranchId, BranchKind, BranchTree, Float, Tube, ATMOSPHERIC_PRESSURE};
-use nalgebra::{Const, DMatrix, DVector, Dynamic, VecStorage};
+use crate::{float, Branch, BranchId, BranchKind, BranchTree, Float, Tube, ATMOSPHERIC_PRESSURE, vec_utils};
+use sparse21::Matrix;
 
 /// The environment of the simulation, at a given tick
 ///
@@ -152,19 +152,20 @@ impl SimulationEnvironment {
             //
             // ... which is what we do below, preserving the negative sign around 'dx'.
 
-            let jacobian = self.jacobian_at(tree, &state, timestep);
+            let mut jacobian = self.jacobian_at(tree, &state, timestep);
+
+            // precompute this, so we can pass it in by value.
+            let opt_func_norm_squared = vec_utils::norm_squared(&opt_func);
 
             // solve for dx:
-            let minus_dx = jacobian
-                .lu()
-                .solve(&opt_func)
+            let minus_dx = jacobian.solve(opt_func).ok()
                 .ok_or("failed to solve system of equations for dx in newton's method")?;
 
-            state -= &minus_dx;
+            vec_utils::sub_assign(&mut state, &minus_dx);
             opt_func = self.optimization_func_at(tree, &state, timestep);
 
             // And then we're done if the state is "close enough" to the optimal solution.
-            if minus_dx.norm_squared() <= TOL && opt_func.norm_squared() <= TOL {
+            if vec_utils::norm_squared(&minus_dx) <= TOL && opt_func_norm_squared <= TOL {
                 break;
             }
         }
@@ -196,9 +197,9 @@ impl SimulationEnvironment {
     fn optimization_func_at(
         &self,
         tree: &BranchTree,
-        state: &DVector<Float>,
+        state: &[Float],
         timestep: Float,
-    ) -> DVector<Float> {
+    ) -> Vec<Float> {
         let n_outputs = tree.optimization_func_output_size();
         let mut output = vec![0.0; n_outputs];
 
@@ -269,7 +270,7 @@ impl SimulationEnvironment {
                 this_pressure - self.pleural_pressure - new_volume / b.compliance;
         }
 
-        DVector::from_data(VecStorage::new(Dynamic::new(n_outputs), Const::<1>, output))
+        output
     }
 
     /// Returns the jacobian of the optimization function at the point given by the state vector
@@ -283,18 +284,11 @@ impl SimulationEnvironment {
     fn jacobian_at(
         &self,
         tree: &BranchTree,
-        state: &DVector<Float>,
+        state: &[Float],
         timestep: Float,
-    ) -> DMatrix<Float> {
-        let n_inputs = tree.state_size();
-        let n_outputs = tree.optimization_func_output_size();
-
+    ) -> Matrix {
         // Make it a matrix right off the bat, so we can use index pairs to set values.
-        let mut jacobian = DMatrix::from_data(VecStorage::new(
-            Dynamic::new(n_outputs),
-            Dynamic::new(n_inputs),
-            vec![0.0; n_inputs * n_outputs],
-        ));
+        let mut jacobian = Matrix::new();
 
         // Because the equations are *mostly* linear, we're mostly filling slots with 1 or -1.
         // There are a few that aren't, the pressure delta equation has the nasty resistance(Q) * Q
@@ -323,9 +317,8 @@ impl SimulationEnvironment {
                 let eqn_idx = tree.pressure_delta_eqn_index(id);
                 let flow_rate = state[q_idx];
 
-                jacobian[(eqn_idx, p_idx)] = -1.0;
-                jacobian[(eqn_idx, q_idx)] =
-                    -self.flow_resistance_term_derivative(&b.tube, flow_rate);
+                jacobian.add_element(eqn_idx, p_idx, -1.0);
+                jacobian.add_element(eqn_idx, q_idx, -self.flow_resistance_term_derivative(&b.tube, flow_rate));
             }
 
             // Child pressure differentials:
@@ -334,26 +327,26 @@ impl SimulationEnvironment {
             let left_flow = state[left_q_idx];
             let left_eqn_idx = tree.pressure_delta_eqn_index(b.left_child);
 
-            jacobian[(left_eqn_idx, p_idx)] = 1.0;
-            jacobian[(left_eqn_idx, left_p_idx)] = -1.0;
-            jacobian[(left_eqn_idx, left_q_idx)] =
-                -self.flow_resistance_term_derivative(tree[b.left_child].tube(), left_flow);
+            jacobian.add_element(left_eqn_idx, p_idx, 1.0);
+            jacobian.add_element(left_eqn_idx, left_p_idx, -1.0);
+            jacobian.add_element(left_eqn_idx, left_q_idx,
+                -self.flow_resistance_term_derivative(tree[b.left_child].tube(), left_flow));
 
             let right_p_idx = tree.state_pressure_index(b.right_child);
             let right_q_idx = tree.state_flow_index(b.right_child);
             let right_flow = state[right_q_idx];
             let right_eqn_idx = tree.pressure_delta_eqn_index(b.right_child);
 
-            jacobian[(right_eqn_idx, p_idx)] = 1.0;
-            jacobian[(right_eqn_idx, right_p_idx)] = -1.0;
-            jacobian[(right_eqn_idx, right_q_idx)] =
-                -self.flow_resistance_term_derivative(tree[b.right_child].tube(), right_flow);
+            jacobian.add_element(right_eqn_idx, p_idx, 1.0);
+            jacobian.add_element(right_eqn_idx, right_p_idx, -1.0);
+            jacobian.add_element(right_eqn_idx, right_q_idx,
+                -self.flow_resistance_term_derivative(tree[b.right_child].tube(), right_flow));
 
             // Sum of flow:
             let sum_eqn_idx = tree.flow_conservation_eqn_index(id);
-            jacobian[(sum_eqn_idx, q_idx)] = 1.0;
-            jacobian[(sum_eqn_idx, right_q_idx)] = -1.0;
-            jacobian[(sum_eqn_idx, left_q_idx)] = -1.0;
+            jacobian.add_element(sum_eqn_idx, q_idx, 1.0);
+            jacobian.add_element(sum_eqn_idx, right_q_idx, -1.0);
+            jacobian.add_element(sum_eqn_idx, left_q_idx, -1.0);
         }
 
         for idx in 0..tree.count_acinar_regions() {
@@ -368,15 +361,15 @@ impl SimulationEnvironment {
             let q_idx = tree.state_flow_index(id);
             let air_cons_eqn_idx = tree.air_conservation_eqn_index(id);
 
-            jacobian[(air_cons_eqn_idx, v_idx)] = 1.0;
-            jacobian[(air_cons_eqn_idx, q_idx)] = -timestep;
+            jacobian.add_element(air_cons_eqn_idx, v_idx, 1.0);
+            jacobian.add_element(air_cons_eqn_idx, q_idx, -timestep);
 
             // Acinar pressure:
             let p_idx = tree.state_pressure_index(id);
             let acinar_p_eqn_idx = tree.acinar_pressure_eqn_index(id);
 
-            jacobian[(acinar_p_eqn_idx, p_idx)] = 1.0;
-            jacobian[(acinar_p_eqn_idx, v_idx)] = -1.0 / b.compliance;
+            jacobian.add_element(acinar_p_eqn_idx, p_idx, 1.0);
+            jacobian.add_element(acinar_p_eqn_idx, v_idx, -1.0 / b.compliance);
         }
 
         jacobian
@@ -436,7 +429,7 @@ fn v_atmospheric(compliance: Float) -> Float {
 /// tree.count_acinar_regions()`.
 ///
 /// [`set_state_from_vector`]: Self::set_state_from_vector
-fn state_vector(tree: &BranchTree) -> DVector<Float> {
+fn state_vector(tree: &BranchTree) -> Vec<Float> {
     let var_count = tree.state_size();
     let mut state_vec: Vec<Float> = vec![0.0; var_count];
 
@@ -472,11 +465,7 @@ fn state_vector(tree: &BranchTree) -> DVector<Float> {
 
     crawl(tree, &mut state_vec, tree.root_id());
 
-    DVector::from_data(VecStorage::new(
-        Dynamic::new(var_count),
-        Const::<1>,
-        state_vec,
-    ))
+    state_vec
 }
 
 /// Sets the entire state of the tree from a state vector
@@ -486,12 +475,12 @@ fn state_vector(tree: &BranchTree) -> DVector<Float> {
 /// ## Panics
 ///
 /// Panics if the length of the vector doesn't match what's expected.
-fn set_state_from_vector(tree: &mut BranchTree, vec: &DVector<Float>) {
+fn set_state_from_vector(tree: &mut BranchTree, vec: &[Float]) {
     // We're expecting it to be a column vector with the length specified in `state_vector`.
     let expected_len = 2 * tree.count_branches() + tree.count_acinar_regions();
-    assert_eq!(vec.shape(), (expected_len, 1));
+    assert_eq!(vec.len(), expected_len);
 
-    fn crawl(tree: &mut BranchTree, vec: &DVector<Float>, id: BranchId) {
+    fn crawl(tree: &mut BranchTree, vec: &[Float], id: BranchId) {
         // prefetch these so we don't have borrow conflicts with `branch`
         let n_bifurcations = tree.count_bifurcations();
         let n_branches = tree.count_branches();
