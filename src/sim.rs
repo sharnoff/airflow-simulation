@@ -1,6 +1,8 @@
 //! The actual simulation
 
-use crate::{float, Branch, BranchId, BranchKind, BranchTree, Float, Tube, ATMOSPHERIC_PRESSURE, vec_utils};
+use crate::{
+    float, vec_utils, Branch, BranchId, BranchKind, BranchTree, Float, Tube, ATMOSPHERIC_PRESSURE,
+};
 use sparse21::Matrix;
 
 /// The environment of the simulation, at a given tick
@@ -158,7 +160,9 @@ impl SimulationEnvironment {
             let opt_func_norm_squared = vec_utils::norm_squared(&opt_func);
 
             // solve for dx:
-            let minus_dx = jacobian.solve(opt_func).ok()
+            let minus_dx = jacobian
+                .solve(opt_func)
+                .ok()
                 .ok_or("failed to solve system of equations for dx in newton's method")?;
 
             vec_utils::sub_assign(&mut state, &minus_dx);
@@ -281,12 +285,7 @@ impl SimulationEnvironment {
     /// For general information about the optimization function, refer to [`optimization_func_at`].
     ///
     /// [`optimization_func_at`]: Self::optimization_func_at
-    fn jacobian_at(
-        &self,
-        tree: &BranchTree,
-        state: &[Float],
-        timestep: Float,
-    ) -> Matrix {
+    fn jacobian_at(&self, tree: &BranchTree, state: &[Float], timestep: Float) -> Matrix {
         // Make it a matrix right off the bat, so we can use index pairs to set values.
         let mut jacobian = Matrix::new();
 
@@ -318,7 +317,11 @@ impl SimulationEnvironment {
                 let flow_rate = state[q_idx];
 
                 jacobian.add_element(eqn_idx, p_idx, -1.0);
-                jacobian.add_element(eqn_idx, q_idx, -self.flow_resistance_term_derivative(&b.tube, flow_rate));
+                jacobian.add_element(
+                    eqn_idx,
+                    q_idx,
+                    -self.flow_resistance_term_derivative(&b.tube, flow_rate),
+                );
             }
 
             // Child pressure differentials:
@@ -329,8 +332,11 @@ impl SimulationEnvironment {
 
             jacobian.add_element(left_eqn_idx, p_idx, 1.0);
             jacobian.add_element(left_eqn_idx, left_p_idx, -1.0);
-            jacobian.add_element(left_eqn_idx, left_q_idx,
-                -self.flow_resistance_term_derivative(tree[b.left_child].tube(), left_flow));
+            jacobian.add_element(
+                left_eqn_idx,
+                left_q_idx,
+                -self.flow_resistance_term_derivative(tree[b.left_child].tube(), left_flow),
+            );
 
             let right_p_idx = tree.state_pressure_index(b.right_child);
             let right_q_idx = tree.state_flow_index(b.right_child);
@@ -339,8 +345,11 @@ impl SimulationEnvironment {
 
             jacobian.add_element(right_eqn_idx, p_idx, 1.0);
             jacobian.add_element(right_eqn_idx, right_p_idx, -1.0);
-            jacobian.add_element(right_eqn_idx, right_q_idx,
-                -self.flow_resistance_term_derivative(tree[b.right_child].tube(), right_flow));
+            jacobian.add_element(
+                right_eqn_idx,
+                right_q_idx,
+                -self.flow_resistance_term_derivative(tree[b.right_child].tube(), right_flow),
+            );
 
             // Sum of flow:
             let sum_eqn_idx = tree.flow_conservation_eqn_index(id);
