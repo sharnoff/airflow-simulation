@@ -17,7 +17,7 @@ $\text{volume}_{t+1} = \text{volume}_t + \text{flow} dt$.
 Instead of a ``full'' fluid simulation (e.g., with the Navier-Stokes equations), we use a
 one-dimensional simulation as shown in \citeauthor{Foy2018}, \citeyear{Foy2018}.
 
-\subsection{Simultaneous Equations}
+\subsection{Simultaneous equations}
 
 This section provides a summary and brief description of the four simultaneous equations that govern
 the state of our system, the first of which is the following:
@@ -75,7 +75,7 @@ acinar region) at the current time and $C_i$ is the \textit{compliance} of the a
 branch $i$. The pleural pressure changes over time to mimic human breathing patterns~--~hence why it
 is parameterised by $t$.
 
-\subsection{Modelling in the Abstract} \label{sec:modelling-in-the-abstract}
+\subsection{Modelling in the abstract} \label{sec:modelling-in-the-abstract}
 
 We use an \textit{implicit} Euler's method to model the system as it progresses: at each timestep,
 our simulation updates its state to the value of an approximate solution to the system of equations
@@ -121,7 +121,7 @@ It's worth noting that in practice, the above definitions are only \textit{nearl
 adjustments were made to the inputs and equations to mitigate limitations from floating-point
 accuracy. These are discussed in the \hyperref[sec:units-and-numerical-stability]{next section}.
 
-\subsection{Units \& Modified Equations for Numerical Stability} \label{sec:units-and-numerical-stability}
+\subsection{Units \& modified equations for numerical stability} \label{sec:units-and-numerical-stability}
 
 It is worth making explict the units used for each value in our simultaneous equations. After
 careful consideration, these were considered to provide the best trade-off of familiar units and
@@ -209,7 +209,7 @@ step.
 Note: The same substitutions also apply to our representations of the state of the model \& the
 optimization function used for Newton's method, as shown in \autoref{sec:modelling-in-the-abstract}.
 
-\subsection{Sparse Matrices}
+\subsection{Sparse matrices}
 
 A key observation that can aid in simulation speed is that we can represent the Jacobean of our
 optimization function $f$ in $\mathcal{O}(n)$ space using sparse matrices~--~which is necessary to
@@ -269,7 +269,7 @@ allow simulation of the lungs up to a high depth without a quadratic blow-up in 
     }
 \end{figure}
 
-\subsection{Procedural Lung Generation \& Configuration}
+\subsection{Procedural lung generation \& configuration}
 
 As part of the simluation software developed for this paper, there are a number of configurable
 parameters~--~primarily encapsulating the structure of the lungs and how they change over the course
