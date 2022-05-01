@@ -11,6 +11,7 @@ use std::io::{self, Write as _};
 use std::iter;
 use std::path::Path;
 use std::process::exit;
+use std::time::{Duration, Instant};
 
 mod branch_id;
 mod cli;
@@ -329,9 +330,10 @@ fn main() {
     cli::run()
 }
 
-// Callback to output the state of the tree, given the current time, state of the tree, and
-// degradation factor
-type DisplayCallback<'a> = Box<dyn 'a + FnMut(Float, &BranchTree, &SimulationEnvironment, Float)>;
+// Callback to output the state of the tree, given the current time, state of the tree, degradation
+// factor, and time spent on the simulation tick
+type DisplayCallback<'a> =
+    Box<dyn 'a + FnMut(Float, &BranchTree, &SimulationEnvironment, Float, Duration)>;
 
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
@@ -365,7 +367,7 @@ impl AppSettings<'_> {
             cli::DisplayMethod::Png { file_pattern } => self.png_callback(bounds, file_pattern),
         };
 
-        callback(0.0, &tree, &sim_env, deg_factor);
+        callback(0.0, &tree, &sim_env, deg_factor, Duration::ZERO);
 
         for i in 1.. {
             // Better to recompute than += timestep because the latter is less precise.
@@ -385,12 +387,16 @@ impl AppSettings<'_> {
                 tree.set_structure(&lerp(&nominal_state, &degraded_state, deg_factor));
             }
 
+            let start = Instant::now();
+
             if let Err(msg) = sim_env.do_tick(&mut tree, self.timestep) {
                 println!("\nfailed to do simulation tick: {}", msg);
                 return;
             }
 
-            callback(current_time, &tree, &sim_env, deg_factor);
+            let elapsed = start.elapsed();
+
+            callback(current_time, &tree, &sim_env, deg_factor, elapsed);
         }
     }
 
@@ -509,7 +515,9 @@ impl AppSettings<'_> {
         };
 
         // Off the bat, print out the csv header information we need:
-        let mut header = "time,pleural pressure,degradation ratio,flow out,total volume".to_owned();
+        let mut header =
+            "time,tick duration,pleural pressure,degradation ratio,flow out,total volume"
+                .to_owned();
         for p in paths {
             let s = p
                 .iter()
@@ -530,7 +538,11 @@ impl AppSettings<'_> {
         writeln!(writer, "{}", header).expect("failed to write CSV header");
 
         Box::new(
-            move |time: Float, tree: &BranchTree, sim_env: &SimulationEnvironment, deg: Float| {
+            move |time: Float,
+                  tree: &BranchTree,
+                  sim_env: &SimulationEnvironment,
+                  deg: Float,
+                  dur: Duration| {
                 let root_path = Vec::new();
 
                 let mut flow_and_volume_values = Vec::new();
@@ -580,7 +592,13 @@ impl AppSettings<'_> {
 
                 // We ensure there's at least two decimal places because pasting into Google Sheets
                 // will sometimes get messed up if there's no decimal place in the number.
-                let mut line = format!("{:.2},{:.2},{:.2}", time, sim_env.pleural_pressure, deg);
+                let mut line = format!(
+                    "{:.2},{:.3},{:.2},{:.2}",
+                    time,
+                    dur.as_secs_f64() * 1000.0,
+                    sim_env.pleural_pressure,
+                    deg
+                );
                 for v in flow_and_volume_values {
                     line.push(',');
                     write!(line, "{:.4}", v).unwrap();
@@ -639,7 +657,11 @@ impl AppSettings<'_> {
         let pat = file_pattern.to_owned();
 
         Box::new(
-            move |_time: Float, tree: &BranchTree, _: &SimulationEnvironment, _: Float| {
+            move |_time: Float,
+                  tree: &BranchTree,
+                  _: &SimulationEnvironment,
+                  _: Float,
+                  _: Duration| {
                 img_config
                     .make_image(tree)
                     .save(cli::substitute_png_file_pattern(&pat, n, max_imgs))
