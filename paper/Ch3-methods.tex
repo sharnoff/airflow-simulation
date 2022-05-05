@@ -4,18 +4,55 @@
 \section{Methods}
 
 Broadly speaking, this section comes in two parts; first defining the more theoretical underpinnings
-of the model used for simulation, followed by detail on the implementation in practice. There is
-relatively little theory to discuss; much of it comes from prior work.\cite{Foy2018}
+of the model used for simulation throughout the rest of the paper, followed by some detail on the
+implementation in practice. Much of the theory is adapted from \cite{Foy2018}, with minor
+modifications.
 
-At a high level, we use a system of simultaneous equations to determine how the state of the
-simulated lungs evolves, updating in discrete timesteps to give a close approximation to the way a
-similar physical system would behave. \autoref{eq:volume-cons-naive} governs the
-conservation of volume from one timestep to the next, which allows us to obtain greater numerial
-stability than we might otherwise, e.g., with
-$\text{volume}_{t+1} = \text{volume}_t + \text{flow} dt$.
+At a high level, we approximate the structure of the lungs \textit{acinar regions} and represent the
+effects of the diaphragm as \textit{pleural pressure} outside these acinar regions. The simulation
+itself uses the implicit Euler method, giving strong numerical stability at the cost of solving a
+complex system of equations (\autoref{eq:volume-cons-naive}) at each timestep.
 
-Instead of a ``full'' fluid simulation (e.g., with the Navier-Stokes equations), we use a
-one-dimensional simulation as shown in \citeauthor{Foy2018}, \citeyear{Foy2018}.
+At the implementation level, we modify the naive equations above to improve floating-point accuracy,
+and demonstrate the benefits of using sparse matrices~--~even without particularly complex solver
+methods.
+
+\subsection{Approximating the lungs} \label{sec:approximating-lungs}
+
+As with any computer simulation of physical processes, approximation is required on some level, due
+to the inherent limitations of classical computers. There are three distinct simplifications made
+for the purposes of computational feasibility that we will discuss here.
+
+The first of these simplifications is that we assume our airflow is one-dimensional and
+incompressible. Modelling air inside the lungs as three dimensional or compressible could be more
+accurate, but would also require significantly more computational resources. Indeed, the key result
+of \cite{Foy2018} is that making this simplification for airflow in the lungs retains the accuracy
+of the model~--~the small-scale differences that may be different from complex airflow modelling do
+not appear to affect the large-scale behavior.
+
+We also approximate the movement of the diaphragm and expansion and contraction of the thoracic
+cavity with a singular measure of \textit{pleural pressure}, a uniform pressure exerted on all the
+acini in the lungs. Some prior work uses a gradient for pleural pressure, modelling the effects of
+gravity. We chose to omit this for simplicity, due to the relatively small magnitude of these
+gradients\footnotemark\ As a consequence, the position of each bronchial tube in a given model does
+not affect the mechanics of its simulation.
+
+\footnotetext{
+    \cite{Foy2018} draws upon prior studies to use a gravitational gradient strength of 2\%/cm,
+    meaning that the maximum and minimum pleural pressures at a given point in time differ by
+    exactly 2\%.
+
+    \todo{
+        actually I'm not sure what's going on here. the units in the equation don't work. (page 29
+        [pdf pg 34])
+    }
+}
+
+Finally, we simulate groups of many acini at once by modelling them as a single, balloon-like air
+sac. The average human pair of lungs contains approximately 300 million acini~--~far too many to
+assign unique variables to each one in a system of equations. So we approximate arbitrarily large
+numbers of acini as \textit{acinar regions}, modelling their elastic behavior and interaction with
+the pleural pressure in the same way as individual acini would be.
 
 \subsection{Simultaneous equations}
 
@@ -77,8 +114,8 @@ is parameterised by $t$.
 
 \subsection{Modelling in the abstract} \label{sec:modelling-in-the-abstract}
 
-We use an \textit{implicit} Euler's method to model the system as it progresses: at each timestep,
-our simulation updates its state to the value of an approximate solution to the system of equations
+We use an \textit{implicit} Euler method to model the system as it progresses: at each timestep, our
+simulation updates its state to the value of an approximate solution to the system of equations
 above. \autoref{eq:volume-cons-naive} provides the necessary bounds to make the method implicit,
 giving us higher accuracy at the cost of implementation complexity.
 
@@ -119,54 +156,43 @@ explicitly by $\bm{x}$.
 
 It's worth noting that in practice, the above definitions are only \textit{nearly} correct; a few
 adjustments were made to the inputs and equations to mitigate limitations from floating-point
-accuracy. These are discussed in the \hyperref[sec:units-and-numerical-stability]{next section}.
+accuracy. These are discussed in the \hyperref[sec:modified-equations]{next section}.
 
-\subsection{Units \& modified equations for numerical stability} \label{sec:units-and-numerical-stability}
+\subsection{Modified equations for floating-point accuracy} \label{sec:modified-equations}
 
-It is worth making explict the units used for each value in our simultaneous equations. After
-careful consideration, these were considered to provide the best trade-off of familiar units and
-those with values of magnitude close to one, where floating-point accuracy is maximized. As we will
-see momentarily, the spread was still quite wide. The chosen units were:
+During initial experimentation, it became apparent that~--~under certain conditions~--~the pressure
+differential between ends of the bronchial tubes became too small for floating-point calculations to
+represent the changes in pressure during updates from Newton's method. This was because the absolute
+magnitude of the pressure (around 1e6 Pascals) was significantly different from the differences in
+pressure (much less than 1 Pascal).\footnotemark\ We mitigated this by changing the formulation of
+the equations used in the simulation, improving their accuracy without changing their semantic
+meaning.
 
-{
-    % Add a bit more spacing within the rows of the table
-    \renewcommand{\arraystretch}{1.6}
-    \begin{table}[h]
-    \centering
-    \begin{tabular}{ |c|c| }
-        \hline
-        Type of thing ??? & Units \\
-        \hline \hline
-        Distance & $\text{m}$ \\
-        \hline
-        Volume & $\text{m}^3$ \\
-        \hline
-        Flow velocity & $\frac{ \text{m}^3 }{ \text{s} }$ \\
-        \hline
-        Density & $\frac{ \text{kg} }{ \text{m}^3 }$ \\
-        \hline
-        Pressure & Pascals $\left( \frac{ \text{kg} }{ \text{m} \cdot \text{s}^2 } \right)$ \\
-        \hline
-        Compliance & $\frac{ \text{m}^3 }{ \text{Pascal} }$ $\left( \frac{ \text{m}^4 \cdot \text{s}^2 }{ \text{kg} } \right)$ \\
-        \hline
-        Resistance & $\frac{ \text{kg} }{ \text{m}^4 \cdot \text{s} }$ \\
-        \hline
-        Viscosity & $\frac{ \text{kg} }{ \text{m} \cdot \text{s} }$ \\
-        \hline
-    \end{tabular}
-    \end{table}
+\footnotetext{
+    \textbf{N.B.:} The change in pressure from \textit{timestep-to-timestep} was still large enough
+    to represent, but the changes to $dx$ during the Newton iteration were. While it initially
+    resolved by the methods in this section, this problem would have also been far lesser with
+    64-bit floating-point values (which we did eventually switch to).
+
+    \noindent
+    Please also note: The approximate pressures described here might be, but are not necessarily,
+    reflective of pressures in the final simulation; there were multiple issues fixed after this
+    observation that may have impacted these values. Even still, the modification was kept, as it
+    provided a non-zero benefit.
+
+    \noindent
+    This problem was detected while simulating unrestricted models, where the relative ease of flow
+    means that the pressure throughout the lungs remains much more balanced.
 }
 
-One of the challenges with using these units is that some values are at a much greater magnitude
-than the others. For example, the pressure inside each branch is close to atmospheric pressure~--~or
-about $10^5$ Pascals, but pressure \textit{gradients} are typically much smaller.
+The ``new'' equations gain accuracy by centering values closer to a magnitude of 1, so that the
+required number of significant digits is greatly reduced.\footnotemark\ These equations use two new
+values, $\hat{P}$ and $\hat{V}$, that are relative to atmospheric pressure. They are defined by:
 
-In practice, this can mean that if the $dx$ from our Euler step is too small, the pressure won't
-change; it doesn't have the necessary precision at that magnitude.
-
-\breakpars
-
-To mitigate this issue, we define two new values: $\hat{P}$ and $\hat{V}$, which are given by:
+\footnotetext{
+    Floating-point numbers have a fixed number of significant digits; arithmetic operations with
+    large differences in magnitude tend to lose significant information in the process.
+}
 
 \begin{equation}
     \hat{P} = P - P_{\text{atm}}
@@ -182,8 +208,8 @@ where $P_{\text{atm}}$ is is atmospheric pressure; and:
 
 \noindent
 Note that the definition of $\hat{V}$ would be the result of simply substituting $\hat{P}$ for $P$
-in \ref{eq:volume-cons-naive}. Applying these substitutions gives the following
-equations, equivalent to their counterparts above:
+in \autoref{eq:volume-cons-naive}. Applying these substitutions gives the following equations,
+equivalent to their counterparts above:
 
 \begin{equation}
     \hat{P}_{\text{parent}} - \hat{P}_i = R(i) Q_i
@@ -206,68 +232,87 @@ causes them to cluster much closer to zero~--~the magnitude of the mean is signi
 relative to the variance of the values. This of course greatly improves the accuracy of each Euler
 step.
 
-Note: The same substitutions also apply to our representations of the state of the model \& the
+The same substitutions also apply to our representations of the state of the model and the
 optimization function used for Newton's method, as shown in \autoref{sec:modelling-in-the-abstract}.
 
 \subsection{Sparse matrices}
 
-A key observation that can aid in simulation speed is that we can represent the Jacobean of our
-optimization function $f$ in $\mathcal{O}(n)$ space using sparse matrices~--~which is necessary to
-allow simulation of the lungs up to a high depth without a quadratic blow-up in runtime.
+A key observation that aiding in simulation speed is that the Jacobean of our optimization function
+$f$ has only $\mathcal{O}(n)$ entries~--~which allows for dramatic storage space and runtime
+savings. This optimization is crucial for practically running simulations up to a high depth on a
+single computer.
 
-\todo{
-    There's a small disconnect between the set of algoithms we \textit{could} use for solving the
-    system versus the actual set of algorithms that I can find packages implementing.
+We used sparse matrices, solving the equations with a sparse gaussian elimination. Other methods
+(such as GMRES) were initially considered but not used, due in equal parts to lack of library
+support and the sufficiency of the simpler gaussian elimination.\footnotemark\ The increase in
+execution speed from dense to sparse matrices is quite significant, as demonstrated in
+\autoref{fig:sparse-speed}. The observed time for a simulation tick~--~which is roughly proportional
+to the time spent solving the system of equations~--~is still not linear in the number of nodes,
+however: fitting the sparse matrix timings to a power series model gives an exponent of 1.97 and
+$R^2$ of 0.989. Fitting a power series to the dense matrix timings gives an exponent of 3.35 and
+$R^2$ of 0.997; clearly significantly worse.
 
-    So the remaining questions here are along the lines of: what are the typical constraints of
-    algorithms to use here, and how does the existing structure of the matrices interact with that?
+\todo{ not familiar with statistical language. what's the best way to write the sentences above? }
 
-    My current thinking for this section is that it should talk about the available options for
-    organizing the sparse matrices (particularly comparing with Foy, which arranges the array in a
-    pattern that's not quite as conducive for sparse solving algorithms). This should probably be a
-    side-by-side comparision with some fancy-ish figures, using the ones I've laid out below.
-
-    There's some interesting points about how the structure of the equations (namely: there are
-    always at least two variables) means that we ``naturally'' get an uppper/lower triangular
-    matrix.
+\footnotetext{
+    There are, of course, \textit{many} sparse matrix libraries in existence. The project was
+    written in Rust, which~--~at time of writing~--~did not have more advanced sparse matrix
+    solvers.
 }
 
-\begin{figure}[H]
+\begin{figure}[p!]
     \centering
-    \tightbox{\includegraphics[width=.5\textwidth]{figs/sparse/separate-big.png}}
+    \begin{tikzpicture}
+        \input{figs/sparse-speed-comparison.pgfplot}
+    \end{tikzpicture}
     \caption{
-        Values and equations separated by type (as currently implemented, and specified in Foy's
-        paper), i.e. $(P..., Q..., V...)$.
+        Time to compute a single simulation tick, with dense versus sparse matrices. Models were
+        simulated for 10 ticks in total, with the results above taken as the average of the final 5,
+        to reduce the impact of operating system caching on performance.
     }
+    \label{fig:sparse-speed}
 \end{figure}
 
-\begin{figure}[H]
+% todo: fix formatting of text in subcaptions here.
+\begin{figure}[p!]
     \centering
-    \tightbox{\includegraphics[width=.5\textwidth]{figs/sparse/separate-rev-big.png}}
+    \begin{subfigure}[t]{.47\textwidth}
+        \centering
+        \tightbox{\includegraphics[width=.9\linewidth]{figs/sparse/separate-rev-big.png}}
+        \caption{ The sparsity pattern of Jacobeans as implemented }
+        \label{subfig:sparse-organization-implemented}
+    \end{subfigure}%
+    \hspace{1em}%
+    \begin{subfigure}[t]{.47\textwidth}
+        \centering
+        \tightbox{\includegraphics[width=.9\linewidth]{figs/sparse/branchgroup-big.png}}
+        \caption{
+            A possible ``cleaner'' sparsity pattern, arranging variables for each node at
+            consecutive indexes.
+        }
+        \label{subfig:sparse-organization-hypothetical}
+    \end{subfigure}
     \caption{
-        What's \textit{actually} currently implemented- because of the way that we assign branch
-        numbers. All placements of values and equations are reversed in their slots from the
-        previous figure.
+        Comparison of the implemented sparsity pattern with one possible alternative (of many).
+        \ref{subfig:sparse-organization-hypothetical} is not \textit{necessarily} more efficient; it
+        demonstrates that other options were available, as an area of possible improvement.
     }
+    \label{fig:sparse-organization}
 \end{figure}
 
-\begin{figure}[H]
-    \centering
-    \tightbox{\includegraphics[width=.5\textwidth]{figs/sparse/branchgroup-big.png}}
-    \caption{
-        All values and equations for each branch followed by the next, i.e. $(..., P_i,Q_i,V_i, ...)$.
-    }
-\end{figure}
+Although the improvement from $\mathcal{O}(x^{3.35})$ to $\mathcal{O}(x^{1.97})$ is significant, it
+is possible that other orderings of values within the Jacobean may be better-optimized for sparse
+gaussian elimination. \autoref{fig:sparse-organization} provides a visual comparison between the
+sparsity pattern that was used in the software developed for this paper and a hypothetical
+alternative. The current layout used places all variables and equations of a certain type at
+consecuitve indexes, i.e. $(P\dots, Q\dots, V\dots)$ instead of e.g.
+$(P_0,Q_0,V_0,\,P_1,Q_1,V_1,\,\dots)$, with variables and equations for parent nodes occuring at
+\textit{later} indexes.
 
-\begin{figure}[H]
-    \centering
-    \tightbox{\includegraphics[width=.5\textwidth]{figs/sparse/q-branchgroup-big.png}}
-    \caption{
-        Like the one above, but the variable for a branch's flow is placed directly after its
-        parent's variables, not with its own: i.e.
-        $(..., P_i, Q_{\text{left}}, Q_{\text{right}}, ...)$
-    }
-\end{figure}
+As context for \autoref{fig:sparse-organization} however, it is important to note that it is not
+possible for the system of equations to be simply organized into an upper- or lower-triangular
+matrix; each equation is composed of at least two variables. With this option unavailable, we did
+not assess alternate orderings of values within the Jacobean.
 
 \subsection{Procedural lung generation \& configuration}
 

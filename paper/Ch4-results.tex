@@ -14,7 +14,7 @@
     \caption{
         Simulated volume at the start of a breathing cycle, with varied initial volumes. Both
         experiments with a symmetric model with a depth of 6 (i.e., 63 total branches). Graphs
-        display the distinction between unrestricted (left) vs 80\% constriction (right).
+        display the distinction between unrestricted (left) vs 80\% constricted (right).
         \textbf{Note:} displayed timespan differs between the left and right graphs.
     }
     \label{fig:different-initial-volumes}
@@ -41,7 +41,7 @@ we also experimented with significantly changed initial volumes, as shown above 
 is unrestricted, but is slower to return to the typical volume when resistance prevents the
 correction from being made more quickly.
 
-\subsection{Flow characteristics under varied constriction} \label{sec:flow-characteristics}
+\subsection{Flow characteristics under stable constriction} \label{sec:flow-characteristics}
 
 \begin{figure}[ht!]
     \centering
@@ -49,18 +49,69 @@ correction from being made more quickly.
         \input{figs/constricted-flow-characteristics.pgfplot}
     \end{tikzpicture}
     \caption{
-        Stable flow during two breathing cycles with varied levels of whole-lung airway constriction
+        Stable flow during two breathing cycles with varied levels of whole-lung airway
+        constriction. Measurements were only recorded after 20 seconds to ensure the effects of any
+        starting conditions had been minimized, shown necessary at severe constriction by
+        \autoref{fig:different-initial-volumes}.
     }
     \label{fig:constricted-flow-characteristics}
 \end{figure}
 
-\todo{
-    This section should basically just say: yeah, this is expected. It should reference whatever
-    other papers have previously reported on these phenomena.
+The first set of experiments investigated the behavior of sustained, normal breathing under minimal
+to severe constriction. Here, we used whole-lung constriction~--~limiting the radius of all airways
+by a given fraction. \autoref{fig:constricted-flow-characteristics} displays the recorded airflow at
+the larynx for normal breathing under a few different levels of constriction. The function
+determining pleural pressure was kept constant. Consistent with prior studies, the effects of
+constriction on airflow only become noticeable after significant constriction~--~in this case,
+60-70\%.
 
-    We delay until 20s after starting because we know from above that longer adjustment periods are
-    required for constricted flow.
-}
+\todo{ need to directly name the prior studies, whatever I can find }
+
+As constriction increases, there are three visible effects: the maximum flow starts to decrease, the
+time at which the maximum flow occurs starts to shift later, and the shape of the flow curve also
+changes~--~becoming flatter at its peaks and steeper around the transitions between positive and
+negative flow.
+
+\autoref{fig:constricted-flow-stats} quantifies these effects. Maximum flow remains relatively
+constant until around 60-70\% constriction, after which it steadily curves towards zero. However,
+before even the \textit{amount} of flow changes, effects are readily visible in other
+characteristics of the curve~--~particularly the maximum acceleration: At only 50\% constriction,
+the maximum acceleration has already increased by 27\% (0.62 to 0.79 L/s\textsuperscript{2}) whereas
+the maximum flow has only decreased by 0.2\% (0.3875 to 0.3868 L/s).
+
+\begin{figure}[ht!]
+    \centering
+    \begin{subfigure}[t]{.45\textwidth}
+        \centering
+        \begin{tikzpicture}[scale=.75]
+            \input{figs/constricted-flow-stats-maxflow.pgfplot}
+        \end{tikzpicture}
+        \subcaption{
+            Maximum flow and time it occurs relative to no constriction
+        }
+    \end{subfigure}%
+    \hspace{2em}%
+    \begin{subfigure}[t]{.45\textwidth}
+        \centering
+        \begin{tikzpicture}[scale=.75]
+            \input{figs/constricted-flow-stats-acceleration.pgfplot}
+        \end{tikzpicture}
+        \subcaption{
+            Maximum flow and maximum acceleration in flow
+        }
+    \end{subfigure}%
+    \caption{
+        Quantified changes in airflow as constriction increases, up to 95\%. Peak airflow is
+        displayed as a baseline for both the time maximum flow occurs (left) and the maximum
+        acceleration in flow between simulation ticks (right).
+    }
+    \label{fig:constricted-flow-stats}
+\end{figure}
+
+Some uneveness is present in the graph of maximum aceleration; this is likely in large part due to
+the method of measurement. Because acceleration was calculated only with the change in flow from one
+simulation tick to another, differences in the timing of this maximal acceleration have likely
+presented here as local differences in spite of the global trend.
 
 \subsection{Comparison of interpolation functions}
 
@@ -118,34 +169,36 @@ $\tanh(3)$ is only 0.995, but experiments without that correction factor showed 
 instantaneous changes in flow from that small change. While these changes were most likely harmless,
 we still elected to remove them.
 
-\newpage
+\section{Recovery}
 
-\todo{
-    Here's an outline of the remaining items I'd like to put in this section, in a rough order:
-}
+\todo{ fill this in }
 
-\begin{itemize}
-    \item Stable flow characteristics of lungs with varying degradation
-        \begin{itemize}
-            \item Basically just want to point out the ways that the curve starts to become
-                lopsided and out of phase from the pleural pressure, with particular emphasis on
-                the way that the effect starts rapidly heightening as the constriction
-                approaches 10\% (about~--~I haven't tested beyond that, which I should).
-        \end{itemize}
-    \item Onset and recovery from airflow constriction. Key things are:
-        \begin{itemize}
-            \item Just showing off the simple graphs, to get a sense of what's going on
-            \item Slow recovery reduces strain~--~we can get abnormally high airflow if pleural
-                pressure lines up with suddenly-reduced constriction 
-            \item Relating to above: I'd like to have a version of the crazy graph~--~the one
-                where it's all just ``degrade and recover'', with each startpoint being offset
-                by 0.5s from the previous one. It would be really good to align that with some
-                kind of chart showing the minimum and maximum flow velocity reached (on top of
-                the normal min/max), to show the kind of chance of risk we run~--~and how much
-                that reduces as the recovery becomes slower.
-            \item Flow characteristics align with those from the current level of constriction
-                (i.e. on the way to 10\%, the area around 20\% constriction tends to mimic the
-                flow characteristics from 20\% at that point)
-            \item The above points are probably three distinct sub-sections.
-        \end{itemize}
-\end{itemize}
+\section{Asymmetric constriction}
+
+\todo{ fill this in }
+
+% \begin{itemize}
+%     \item Stable flow characteristics of lungs with varying degradation
+%         \begin{itemize}
+%             \item Basically just want to point out the ways that the curve starts to become
+%                 lopsided and out of phase from the pleural pressure, with particular emphasis on
+%                 the way that the effect starts rapidly heightening as the constriction
+%                 approaches 10\% (about~--~I haven't tested beyond that, which I should).
+%         \end{itemize}
+%     \item Onset and recovery from airflow constriction. Key things are:
+%         \begin{itemize}
+%             \item Just showing off the simple graphs, to get a sense of what's going on
+%             \item Slow recovery reduces strain~--~we can get abnormally high airflow if pleural
+%                 pressure lines up with suddenly-reduced constriction 
+%             \item Relating to above: I'd like to have a version of the crazy graph~--~the one
+%                 where it's all just ``degrade and recover'', with each startpoint being offset
+%                 by 0.5s from the previous one. It would be really good to align that with some
+%                 kind of chart showing the minimum and maximum flow velocity reached (on top of
+%                 the normal min/max), to show the kind of chance of risk we run~--~and how much
+%                 that reduces as the recovery becomes slower.
+%             \item Flow characteristics align with those from the current level of constriction
+%                 (i.e. on the way to 10\%, the area around 20\% constriction tends to mimic the
+%                 flow characteristics from 20\% at that point)
+%             \item The above points are probably three distinct sub-sections.
+%         \end{itemize}
+% \end{itemize}

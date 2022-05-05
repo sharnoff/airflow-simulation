@@ -2,7 +2,7 @@ SPARSEFIGS := $(shell find figs/sparse -name '*.build.json' | sed -e 's/\.build\
 
 LATEXMK_ARGS := -f -pdf -interaction=nonstopmode
 
-main.pdf: $(SPARSEFIGS) figs/*.pgfplot figs/*.tex *.tex
+main.pdf: $(SPARSEFIGS) figs/*.pgfplot figs/*.tex *.tex ref.bib
 	latexmk $(LATEXMK_ARGS) main.tex
 
 figs/sparse/%.png: figs/sparse/%.build.json figs/sparse/generate.py

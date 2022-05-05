@@ -12,15 +12,24 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
 \usepackage{bm}
+\usepackage[font=small,labelfont=bf]{caption}
 \usepackage{changepage}
 \usepackage{float}
+\usepackage[splitrule]{footmisc}
 \usepackage{graphicx}
 \usepackage{hyperref}
-\usepackage{natbib}
+\usepackage{mhchem}
+\usepackage[square,numbers]{natbib}
 \usepackage{pgfplots}
+\usepackage{subcaption}
 \usepackage{textcomp}
 \usepackage{tikz}
 \usepackage{xcolor}
+
+% never break footnotes across pages -- https://tex.stackexchange.com/a/32210
+%
+% ... although this doesn't seem to be working as effectively as it should.
+\interfootnotelinepenalty=10000
 
 % A selection of colors making up a pastel-like palette, just so everything's a bit more pleasing on
 % the eye.
@@ -110,7 +119,10 @@
 \input{Ch4-results.tex}
 
 \newpage
+\input{Ch5-discussion.tex}
+
+\newpage
 \bibliography{ref.bib}{}
-\bibliographystyle{plain}
+\bibliographystyle{abbrvnat}
 
 \end{document}

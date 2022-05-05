@@ -5,31 +5,125 @@
 
 \subsection{Physiology of the lungs}
 
-Basic points:
-\begin{itemize}
-    \item air comes in through mouth, meets the lungs at the larynx
-    \item lungs start off with the trachea, turns into bronchi/bronchial tubes
-    \item eventually turns into bronchioles, alveoli \& capillary network (although we don't care
-        \textit{as} much about these)
-\end{itemize}
+At a high level, the physiology of the lungs can be divided into the few most significant
+structures. This section does not discuss pulmonary blood circulation, or the mechanics of gas
+exchange~--~this paper is primarily concerned with the flow of air in and out of the lungs.
 
-Want to talk about typical dimensions of each part here, as well as typical airflow \& how that's
-observed (e.g. "what tests are used?") -- talk about intert-gas washout, among others.
+The flow of air into the lungs begins with the diaphragm, a muscle below the lungs that contracts to
+increase the volume of the \textit{thoracic cavity} (where lungs are housed). This increase in
+volume causes the negative pressure that drives inspiration. Correspondingly, typical expiration is
+driven by relaxation of the diaphragm and the associated increase in pressure in the thoracic
+cavity.
+
+Air flows into the body through the nose and mouth, meeting the trachea at the larynx, in the neck.
+The trachea splits into the left and right bronchi~--~connecting to the left and right lungs
+respectively. The bronchi split into a binary tree of progressively smaller bronchial tubes (the
+\textit{tracheobronchial tree}), with the \textit{generation} of a bronchial tube referring to the
+number of branches between it and the larynx. The smallest bronchial tubes terminate in a small
+number of acini, small clusters of alveoli. Alveoli are the small, spherical air sacs that act as
+the sites of gas exchange with the blood. A core technique used in this paper is the approximation
+of one or many acini as spherical air sacs themselves, further described in
+\autoref{sec:approximating-lungs}. Typical dimensions for all of the structures above are given in
+\autoref{tab:lung-sizes}.
+
+% FIXME: ^ need sources here
+% https://en.wikipedia.org/wiki/Lung#/media/File:Secondary-pulmonary-lobule-illustration.jpg
+%  ^ good diagram
+% https://pubmed.ncbi.nlm.nih.gov/472520/
+%  ^ "A statistical description of the human tracheobronchial tree geometry"
+
+Beyond the structure of the lungs, there are also a number of measures of volume. \textit{Tidal
+volume} (TV) refers to the volume of air moved in or out of the lungs during a typical breath, and
+\textit{functional residual capacity} (FRC) refers to the total volume of air remaining in the lungs
+after a normal expiration.\footnotemark\ Typical values for TV and FRC are also given in
+\autoref{tab:lung-sizes}.
+
+% FIXME: ^ source = https://www.ncbi.nlm.nih.gov/books/NBK545177/
+%   ^ useful: https://pubmed.ncbi.nlm.nih.gov/12773331/
+%   ^         https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5980468/
+
+\footnotetext{
+    \textbf{N.B.:} TV and FRC both describe typical breaths; there are analogous terms for maximum
+    capabilities (\textit{vital capacity} (VC) and \textit{residual volume} (RV)). Also notable is
+    \textit{total lung capacity} (TLC; equal to VC + RV). These are included here for context, but
+    they are not necessary for understanding the experiments in this paper.
+}
+
+\begin{table}[h]
+\centering
+    \begin{tabular}{ |c|c|c| }
+    \hline
+        Metric & Mean value (adult female) & Mean value (adult male) \\
+        \hline \hline
+        Trachea length & todo & todo \\ % FIXME: fill in the chart lol
+        Trachea radius & todo & todo \\
+        Bronchus length & todo & todo \\
+        Bronchus radius & todo & todo \\
+        Acinus radius & todo & todo \\
+        Alveolus radius & todo & todo \\
+        \hline
+        TV & todo & todo \\
+        FRC & todo & todo \\
+        \hline
+\end{tabular}
+\caption{
+    Typical sizes of various lung structures and volumes. Larger structures and effects tend to be
+    more different in proportion between average males and females.
+}
+\label{tab:lung-sizes}
+\end{table}
 
 \subsection{Clinical methods}
 
-\begin{itemize}
-    \item fMRI -- typically very expensive \& fairly low granularity: Good at getting an overview of
-        the lung morphology, but resolution is typically low. (Not 100\% sure how accurate this
-        assessment is, but I think I saw something about it.)
-    \item Inert gas washout
-\end{itemize}
+There are a number of relevant clinical methods for measuring lung function, many of which will be
+discussed in this section. Despite the clinical utiltiy however, there are certain limitations to
+these methods that make them less well-suited to research, namely: difficulty with establishing
+causation and cost per datapoint (either monetary, temporal, or both).
 
-The above are good for \textit{observing} changes in a patient, but have a couple shortcomings if we
-want to analyze the effects of lung morphology. Firstly, observational tests cannot be performed
-quickly; it would be prohibitively expensive to acquire the data for any kind of large-scale
-analysis. Secondly, current clinical methods do not allow forced changes to patient lung morphology
-(even without the risks and ethical considerations).
+Reservations aside, current clinical tools for measuring lung function can essentially be grouped
+into three categories: exhalation measurement: spirometry and inert-gas washout; oscillometry: FOT
+and IOS; or imaging techniques: CT, PET, and MRI.
+
+\textit{Spirometry} measures the volume and flow from a patient's maximal exhalation (after maximal
+inhilation), producing volume-flow and volume-time curves. It is simple to perform, but the reliance
+on maximal exhalation gives it a particularly low sensitivity. \textit{Inert-gas washout} instead
+floods the lungs with an inert gas (e.g.~\ce{SF_6} or \ce{^3He}) before continuously measuring the
+concentration of the gas exhaled through normal breathing. Measurements are either made over many
+breaths (\textit{multiple-breath washout} (MBW)) or just one (\textit{single-breath washout} (SBW)).
+Both MBW and SBW have a number of indices typically produced from the data, which correlate with
+many lung diseases.
+
+Both \textit{forced oscillation technique} (FOT) and \textit{impulse oscillometry} (IOS) apply
+oscillations at the mouth and measure the resulting airflow and pressure. FOT uses controlled
+pulses whereas IOS uses pseudo-random noise. From this, estimates of resistance and inertance of the
+lungs are made, which have correlations to diseases such as asthma and COPD.
+
+Finally, we have the imaging techniques: \textit{Magnetic resonance imaging} (MRI), \textit{computed
+tomography} (CT), and \textit{positron emission tomography} (PET). Beyond immediately-visible
+ailments (e.g. foreign objects or fluid buildup), these methods can also be used to estimate the
+ventilation of air in each voxel of the image~--~providing metrics that can quantify overall lung
+function (and highlight specific regions where function is degraded). However, these methods are
+typically expenive (MRI) or dangerous in large amounts (CT and PET) and the timeline of resolution
+improvements means that high-resolution imaging has not been available for as long as other methods.
+The costs associated with these methods and the relative recency of high-resolution versions has
+meant that there is also a relative gap in the literature linking imaging results to respiratory
+disease classification.
+
+This final point is one of the key reasons why computational models are so useful; high costs or low
+availability hinder new research, and computer simulation can provide a simpler, cheaper method for
+testing ideas. It is difficult to obtain large amounts of data for analysis when the underlying
+methods are expensive or time-consuming, relative to the amount of data produced.\footnotemark
+
+\footnotetext{
+    To be clear here: methods like spirometry are relatively cheap and not overly time-consuming,
+    but the amount of data each test generates is small; establishing complex relationships may
+    require large amounts of data, regardless of the type of test used.
+}
+
+Also of note is that all of the above techniques are strictly observation with respect to the
+condition of the lungs. Analyzing the effects of various morphological changes within the lungs is
+difficult without the ability to directly effect those changes, but forced changes to patient lung
+morphology are typically both risky and unethical.
 
 For those reasons, it is natural to turn to simulations -- in particular, computational models -- in
 order to gain insight into impact on physiology and overall function from isolated changes within
@@ -37,7 +131,18 @@ the lungs.
 
 \subsection{Prior computational models}
 
-Talk briefly about proper fluid dynamics being too computationally expensive, use that to tie into
-the model from Foy.
+This section is unfortunately brief~--~historically, computational models have been limited by the
+available resources (they still are) and data to base them on. From the beginning, simulating
+``full'' fluid dynamics with the Navier-Stokes equations has been both unnecessary and out of reach;
+reasonable assumptions can be made about the flow of air within the lungs to simplify modelling
+(see: \autoref{sec:approximating-lungs}), and models have increased in complexity over time to match
+advancements in the speed of computers.
 
-There's definitely other models, still need to look into those.
+Early models represented the lungs with just a few elastic chambers, but advancements in
+physiological data (particularly from Weibel, 1963) allowed later models to generate larger models
+of the lungs, with the size now singularly limited by computational capabilities.
+
+More recently, models have been partially constructed with results from patient imaging (up to
+generations 6-10) with later generations generated by the parameters from Webiel (1963).
+
+\todo{ the ``Weibel, 1963'' above needs to actually be a reference }
