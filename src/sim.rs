@@ -9,14 +9,13 @@ use sparse21::Matrix;
 ///
 /// All pressures are in units of Pascals.
 pub struct SimulationEnvironment {
-    /// The pressure on the lungs -- the portion of the pressure that the diaphragm is responsible
-    /// for
+    /// The pressure exerted on the lungs by the pleural cavity -- the portion of the pressure that
+    /// the diaphragm is responsible for. Units of pascals (kg/ms²)
     ///
-    /// TODO: This should actually be distributed, because we need to take the effects of gravity
-    /// into account.
+    /// TODO: This could have an attached gradient to take gravity into account.
     pub pleural_pressure: Float,
 
-    /// The pressure at the trachel boundary. In Foy's paper, this is always equal to atmospheric
+    /// The pressure at the tracheal boundary. In Foy's paper, this is always equal to atmospheric
     /// pressure.
     pub tracheal_pressure: Float,
 

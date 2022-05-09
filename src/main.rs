@@ -171,10 +171,10 @@ impl Branch {
 /// Atmospheric pressure at sea level, in Pascals
 const ATMOSPHERIC_PRESSURE: Float = 101_325.0;
 
-/// We'll say that the total volume of the lungs is about 2 liters. It's not incredibly accurate,
-/// but close enough so that we're talking about measurements that probably correspond to a real
-/// person
-const DEFAULT_TOTAL_LUNG_VOLUME: Float = 0.002;
+/// We'll say that the default functional residual capacity is about 2.5 liters. It's not
+/// *necessarily* accurate but close enough so that we're talking about measurements that probably
+/// correspond to a real person.
+const DEFAULT_LUNG_FRC: Float = 0.0025;
 
 /// Length of the trachea, in meters. Average length is around 12cm, which is 0.12m
 const TRACHEA_LENGTH: Float = 0.12;
@@ -191,6 +191,9 @@ pub struct EnvConfig {
     initial_volume: Option<Float>,
 }
 
+/// Values used for the pleural pressure, relative to atmospheric pressure
+///
+/// These values are later converted when passed to the simulator itself.
 #[derive(Debug, Copy, Clone, Deserialize)]
 #[serde(default)]
 struct PleuralPressureConfig {
@@ -198,15 +201,19 @@ struct PleuralPressureConfig {
     lo: Float,
     hi: Float,
     period: Float,
+    /// Maximum pleural pressure during normal breathing; used for calculating compliance for
+    /// desired FRC
+    normal_hi: Float,
 }
 
 impl Default for PleuralPressureConfig {
     fn default() -> Self {
         PleuralPressureConfig {
-            init: 0.0,
-            lo: -25_000.0,
-            hi: 0.0,
+            init: -1000.0,
+            lo: -2000.0,
+            hi: -1000.0,
             period: 4.0,
+            normal_hi: -1000.0,
         }
     }
 }
@@ -338,14 +345,16 @@ type DisplayCallback<'a> =
 impl AppSettings<'_> {
     /// Runs the app until completion, using the settings filled by the `cli` module
     fn run(&self) {
-        let (tree_pair, bounds, total_volume, env_cfg, sched) =
+        let (tree_pair, bounds, lung_frc, env_cfg, sched) =
             self.make_tree_and_bounds().unwrap_or_else(|e| {
                 eprintln!("{:?}", e.wrap_err("failed to construct model"));
                 exit(1)
             });
 
         let mut sim_env = SimulationEnvironment {
-            pleural_pressure: env_cfg.pleural_pressure.at_time(0.0),
+            // Shift the pleural pressure here so that it's no lnger relative to atmospheric
+            // pressure
+            pleural_pressure: ATMOSPHERIC_PRESSURE + env_cfg.pleural_pressure.at_time(0.0),
             tracheal_pressure: ATMOSPHERIC_PRESSURE,
             air_viscosity: 1.8e-5,
             air_density: 1.225,
@@ -358,7 +367,7 @@ impl AppSettings<'_> {
         let mut deg_factor = sched.degradation_at_time(0.0);
         tree.set_structure(&lerp(&nominal_state, &degraded_state, deg_factor));
 
-        let initial_volume = env_cfg.initial_volume.or(total_volume);
+        let initial_volume = env_cfg.initial_volume.or(lung_frc);
 
         sim_env.reset(&mut tree, initial_volume);
 
@@ -377,8 +386,9 @@ impl AppSettings<'_> {
                 break;
             }
 
-            // The pleural pressure needs to update at each timestep
-            sim_env.pleural_pressure = env_cfg.pleural_pressure.at_time(current_time);
+            // The pleural pressure needs to update at each timestep. Same shift by atmospheric
+            // pressure as above so that it's absolute pressure not relative
+            sim_env.pleural_pressure = ATMOSPHERIC_PRESSURE + env_cfg.pleural_pressure.at_time(current_time);
 
             // And possibly we need to degrade (or un-degrade) the tree
             let old_deg_factor = deg_factor;
@@ -405,7 +415,7 @@ impl AppSettings<'_> {
     /// * The nominal and degraded `BranchTree`s;
     /// * The upper-right corner of the rectangle of the minimum view into the tree(s);
     /// * Configuration of the simulation environment;
-    /// * The expected total volume of the tree, if provided; and
+    /// * The expected functional residual capacity of the lungs, if provided; and
     /// * A schedule for determining the degradation amount at each point in time
     ///
     /// It is assumed that the tree shouldn't display further down or left than (0,0).
@@ -427,11 +437,11 @@ impl AppSettings<'_> {
             nominal: BranchTree::from_generator(start, &gen, false),
             degraded: BranchTree::from_generator(start, &gen, true),
         };
-        let total_volume = Some(gen.total_volume());
+        let lung_frc = Some(gen.lung_frc());
         Ok((
             pair,
             gen.upper_right(),
-            total_volume,
+            lung_frc,
             gen.env_config(),
             gen.schedule(),
         ))
@@ -453,25 +463,26 @@ impl AppSettings<'_> {
             tube_radius: TRACHEA_RADIUS,
         };
 
+        let env_config = EnvConfig::default();
+
         // Calculate the compliance so that it produces the "correct" total lung volume at
         // atmospheric pressure
         let compliance = {
             let n_acinar = 1 << (depth + 1);
-            let volume_per = DEFAULT_TOTAL_LUNG_VOLUME / n_acinar as Float;
+            let volume_per = DEFAULT_LUNG_FRC / n_acinar as Float;
 
             // volume = compliance * (pressure - pleural pressure), therefore:
             //
             //   compliance = volume / (pressure - pleural pressure)
             //
-            // because we're assuming pleural pressure is zero, we just get:
-            volume_per / ATMOSPHERIC_PRESSURE
+            // FRC occurs when pleural pressure is at maximum (for normal breaths), so we use that
+            // here.
+            volume_per / -env_config.pleural_pressure.normal_hi
         };
 
         println!("info: calculated compliance as {}", compliance);
 
         let generator = EqualChildGenerator {
-            // 0.2L/cmH₂O gives 2.0394e-6, in m³/Pa. For some reason, that *really* doesn't play
-            // nice here, so we're using a value that does. <- TODO/FIXME
             compliance,
             // +1 here because EqualChildGenerator counts depth from 1, and we want to count from
             // zero.
@@ -492,13 +503,7 @@ impl AppSettings<'_> {
             degraded: tree,
         };
 
-        (
-            pair,
-            upper_right,
-            None,
-            EnvConfig::default(),
-            Schedule::default(),
-        )
+        (pair, upper_right, None, env_config, Schedule::default())
     }
 
     fn csv_callback<'p>(&self, file: Option<&str>, paths: &'p [TreePath]) -> DisplayCallback<'p> {

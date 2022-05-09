@@ -20,11 +20,10 @@ pub struct RootGenerationConfig {
     #[serde(flatten)]
     pub common: BaseGenerationConfig,
 
-    /// The total volume of all acinar regions in the lungs, in m³
+    /// The functional residual capacity (FRC) of the lungs, in m³
     ///
-    /// If present, overrides the default given by [`DEFAULT_TOTAL_LUNG_VOLUME`]
-    ///
-    /// Please note that this does not affect the volumes given by [`EnvConfig.initial_volume`].
+    /// If present, overrides the default given by [`DEAULT_LUNG_FRC`]. Note that this does not
+    /// affect the volume given by [`EnvConfig.initial_volume`].
     ///
     /// [`EnvConfig.initial_volume`]: crate::EnvConfig
     pub total_volume: Option<Float>,

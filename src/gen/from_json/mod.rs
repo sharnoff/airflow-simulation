@@ -3,8 +3,8 @@
 
 use super::*;
 use crate::{
-    float, EnvConfig, Schedule, ATMOSPHERIC_PRESSURE, DEFAULT_TOTAL_LUNG_VOLUME, TRACHEA_LENGTH,
-    TRACHEA_RADIUS,
+    float, EnvConfig, Schedule, DEFAULT_LUNG_FRC, TRACHEA_LENGTH,
+    TRACHEA_RADIUS, PleuralPressureConfig
 };
 use eyre::{eyre, Context};
 use std::fs;
@@ -34,7 +34,7 @@ pub struct FromJsonGenerator {
     by_parent_id: Vec<Branch>,
     upper_right: Point,
     start_parent_info: ParentInfo,
-    total_volume: Float,
+    lung_frc: Float,
     env_config: EnvConfig,
     schedule: Schedule,
 }
@@ -88,9 +88,9 @@ impl FromJsonGenerator {
         self.upper_right
     }
 
-    /// Returns the total volume of the generated model
-    pub fn total_volume(&self) -> Float {
-        self.total_volume
+    /// Returns the estimated functional residual capacity of the generated model
+    pub fn lung_frc(&self) -> Float {
+        self.lung_frc
     }
 
     /// Produces the configured environment information
@@ -108,10 +108,10 @@ impl FromJsonGenerator {
     // This function needs to generate the entire tree as a first-pass in order to determine some
     // of the scaling information (e.g. distribution of compliance, center point, etc.)
     fn from_parsed(parsed: ParsedConfig) -> eyre::Result<Self> {
-        let total_volume = parsed
+        let lung_frc = parsed
             .config
             .total_volume
-            .unwrap_or(DEFAULT_TOTAL_LUNG_VOLUME);
+            .unwrap_or(DEFAULT_LUNG_FRC);
         let trachea_length = parsed.config.trachea_length.unwrap_or(TRACHEA_LENGTH);
         let trachea_radius = parsed.config.trachea_radius.unwrap_or(TRACHEA_RADIUS);
 
@@ -145,6 +145,10 @@ impl FromJsonGenerator {
                 pressure_cfg.lo,
                 pressure_cfg.hi,
             ))
+        } else if pressure_cfg.hi >= 0.0 {
+            Err(eyre!("pleural pressure `hi` ({}) must be less than zero (it is relative to atmospheric pressure)", pressure_cfg.lo))
+        } else if pressure_cfg.normal_hi >= 0.0 {
+            Err(eyre!("pleural pressure `normal_hi` ({}) must be less than zero (it is relative to atmospheric pressure)", pressure_cfg.lo))
         } else if pressure_cfg.period <= 0.0 {
             Err(eyre!("period must be > 0 (default: 4.0)"))
         } else {
@@ -216,12 +220,11 @@ impl FromJsonGenerator {
                 // If this is an acinar region, then there's not much more we can do:
                 if ctx.is_acinar() {
                     let (nominal_c, abnormal_c) = ctx.compliance();
-                    let base_compliance =
-                        Self::guess_compliance_for_depth(total_volume, ctx.depth());
+                    let base_compliance = Self::guess_compliance_for_depth(lung_frc, &pressure_cfg, ctx.depth());
 
                     // Update extreme points:
                     let end_pos = ctx.end_pos();
-                    let radius_guess = Self::guess_radius_for_compliance(base_compliance);
+                    let radius_guess = Self::guess_radius_for_compliance(base_compliance, &pressure_cfg);
 
                     most_positive_point.x = most_positive_point.x.max(end_pos.x + radius_guess);
                     most_positive_point.y = most_positive_point.y.max(end_pos.y + radius_guess);
@@ -300,7 +303,7 @@ impl FromJsonGenerator {
         // After generating the tree, we now need to do a full pass to rescale compliances to match
         // the expected total volume.
         let generated_total_compliance = child_stack[0].2;
-        let expected_total_compliance = Self::guess_compliance_for_depth(total_volume, 1);
+        let expected_total_compliance = Self::guess_compliance_for_depth(lung_frc, &pressure_cfg, 1);
 
         // If the generated compliance is not within a small amount of the actual compliance, then
         // we should rescale:
@@ -339,7 +342,7 @@ impl FromJsonGenerator {
             by_parent_id,
             upper_right,
             start_parent_info,
-            total_volume,
+            lung_frc,
             env_config: parsed.env,
             schedule: parsed.schedule,
         })
@@ -349,19 +352,24 @@ impl FromJsonGenerator {
     ///
     /// If there are no modified compliances, this will be correct. Otherwise, it may require some
     /// scaling after the initial generation.
-    fn guess_compliance_for_depth(total_volume: Float, depth: usize) -> Float {
+    fn guess_compliance_for_depth(lung_frc: Float, pressure_cfg: &PleuralPressureConfig, depth: usize) -> Float {
         // NOTE: This requires depth <= 64. This is accounted for by the `MAX_DEPTH` constant at the
         // top of this module.
         let n_acinar = 1 << (depth as u64 - 1);
 
-        let volume_per = total_volume / n_acinar as Float;
+        let volume_per = lung_frc / n_acinar as Float;
 
-        volume_per / ATMOSPHERIC_PRESSURE
+        // In unrestricted flow with normal breathing, the minimum volume is FRC and the flow is
+        // zero (it's the minimum, so it's switching from out to in). Because flow is zero, we know
+        // that { acinar volume/compliance } is equal to the difference between atmospheric and
+        // pleural pressure.
+        //
+        // This always occurs at the maximum pleural pressure, which is always negative.
+        volume_per / -pressure_cfg.normal_hi
     }
 
-    fn guess_radius_for_compliance(compliance: Float) -> Float {
-        // Just use atmospheric pressure
-        let volume = compliance * ATMOSPHERIC_PRESSURE;
+    fn guess_radius_for_compliance(compliance: Float, pressure_cfg: &PleuralPressureConfig) -> Float {
+        let volume = compliance * -pressure_cfg.normal_hi;
         (volume * 3.0 / (4.0 * float::PI)).powf(1.0 / 3.0)
     }
 }
