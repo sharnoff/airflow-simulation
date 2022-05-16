@@ -171,17 +171,17 @@ impl Branch {
 /// Atmospheric pressure at sea level, in Pascals
 const ATMOSPHERIC_PRESSURE: Float = 101_325.0;
 
-/// We'll say that the default functional residual capacity is about 2.5 liters. It's not
-/// *necessarily* accurate but close enough so that we're talking about measurements that probably
-/// correspond to a real person.
-const DEFAULT_LUNG_FRC: Float = 0.0025;
+/// We'll say that the default functional residual capacity is about 3 liters -- between the
+/// averages for men and women.
+const DEFAULT_LUNG_FRC: Float = 1e-3 * 3.0;
 
-/// Length of the trachea, in meters. Average length is around 12cm, which is 0.12m
-const TRACHEA_LENGTH: Float = 0.12;
+/// Length of the trachea, in meters. Currently set to 10 cm, between the averages for men and
+/// women.
+const TRACHEA_LENGTH: Float = 0.01 * 10.0;
 
-/// Radius of the trachea, in meters. Seems like average diameter is around 1.5-2cm. Picked 2cm
-/// because it's a simpler number & this doesn't need to be perfectly accurate yet.
-const TRACHEA_RADIUS: Float = 0.01;
+/// Radius of the trachea, in meters. Currently set to 0.95 cm, between the averages for men and
+/// women.
+const TRACHEA_RADIUS: Float = 0.01 * 0.95;
 
 #[derive(Debug, Copy, Clone, Default, Deserialize)]
 #[serde(default)]
@@ -209,11 +209,11 @@ struct PleuralPressureConfig {
 impl Default for PleuralPressureConfig {
     fn default() -> Self {
         PleuralPressureConfig {
-            init: -1000.0,
-            lo: -2000.0,
-            hi: -1000.0,
+            init: -750.0,
+            lo: -875.0,
+            hi: -750.0,
             period: 4.0,
-            normal_hi: -1000.0,
+            normal_hi: -750.0,
         }
     }
 }
@@ -352,9 +352,9 @@ impl AppSettings<'_> {
             });
 
         let mut sim_env = SimulationEnvironment {
-            // Shift the pleural pressure here so that it's no lnger relative to atmospheric
-            // pressure
-            pleural_pressure: ATMOSPHERIC_PRESSURE + env_cfg.pleural_pressure.at_time(0.0),
+            // Don't shift pleural pressure yet; printing the simulation environment should use the
+            // pleural pressure *relative to atmospheric pressure*
+            pleural_pressure: env_cfg.pleural_pressure.at_time(0.0),
             tracheal_pressure: ATMOSPHERIC_PRESSURE,
             air_viscosity: 1.8e-5,
             air_density: 1.225,
@@ -377,6 +377,7 @@ impl AppSettings<'_> {
         };
 
         callback(0.0, &tree, &sim_env, deg_factor, Duration::ZERO);
+        sim_env.pleural_pressure += ATMOSPHERIC_PRESSURE;
 
         for i in 1.. {
             // Better to recompute than += timestep because the latter is less precise.
@@ -388,7 +389,8 @@ impl AppSettings<'_> {
 
             // The pleural pressure needs to update at each timestep. Same shift by atmospheric
             // pressure as above so that it's absolute pressure not relative
-            sim_env.pleural_pressure = ATMOSPHERIC_PRESSURE + env_cfg.pleural_pressure.at_time(current_time);
+            let pleural_pressure_diff = env_cfg.pleural_pressure.at_time(current_time);
+            sim_env.pleural_pressure = ATMOSPHERIC_PRESSURE + pleural_pressure_diff;
 
             // And possibly we need to degrade (or un-degrade) the tree
             let old_deg_factor = deg_factor;
@@ -406,6 +408,7 @@ impl AppSettings<'_> {
 
             let elapsed = start.elapsed();
 
+            sim_env.pleural_pressure = pleural_pressure_diff; // just for printing
             callback(current_time, &tree, &sim_env, deg_factor, elapsed);
         }
     }
@@ -432,10 +435,11 @@ impl AppSettings<'_> {
         file: &Path,
     ) -> eyre::Result<(TreePair, Point, Option<Float>, EnvConfig, Schedule)> {
         let gen = FromJsonGenerator::from_file(file)?;
-        let start = gen.start_parent_info();
+        let start_nominal = gen.start_parent_info(false);
+        let start_degraded = gen.start_parent_info(true);
         let pair = TreePair {
-            nominal: BranchTree::from_generator(start, &gen, false),
-            degraded: BranchTree::from_generator(start, &gen, true),
+            nominal: BranchTree::from_generator(start_nominal, &gen, false),
+            degraded: BranchTree::from_generator(start_degraded, &gen, true),
         };
         let lung_frc = Some(gen.lung_frc());
         Ok((
@@ -521,7 +525,7 @@ impl AppSettings<'_> {
 
         // Off the bat, print out the csv header information we need:
         let mut header =
-            "time,tick duration,pleural pressure,degradation ratio,flow out,total volume"
+            "time,tick duration,pleural pressure,degradation ratio,flow in,total volume"
                 .to_owned();
         for p in paths {
             let s = p
@@ -534,7 +538,7 @@ impl AppSettings<'_> {
 
             header.push(',');
             header.push_str(&s);
-            header.push_str(" flow out");
+            header.push_str(" flow in");
             header.push(',');
             header.push_str(&s);
             header.push_str(" total volume");
@@ -572,10 +576,10 @@ impl AppSettings<'_> {
                         }
                     }
 
-                    let mut flow_out = -path_root.tube().flow_in;
+                    let mut flow_in = path_root.tube().flow_in;
                     // Convert flow m³/s -> L/s
-                    flow_out *= 1e3;
-                    flow_and_volume_values.push(flow_out);
+                    flow_in *= 1e3;
+                    flow_and_volume_values.push(flow_in);
 
                     // Find the total volume:
                     let mut stack = vec![path_root];
@@ -598,7 +602,7 @@ impl AppSettings<'_> {
                 // We ensure there's at least two decimal places because pasting into Google Sheets
                 // will sometimes get messed up if there's no decimal place in the number.
                 let mut line = format!(
-                    "{:.2},{:.3},{:.2},{:.2}",
+                    "{:.4},{:.3},{:.2},{:.4}",
                     time,
                     dur.as_secs_f64() * 1000.0,
                     sim_env.pleural_pressure,

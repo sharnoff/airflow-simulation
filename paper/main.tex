@@ -10,7 +10,9 @@
 \frenchspacing
 
 \usepackage[utf8]{inputenc}
+
 \usepackage{amsmath}
+\usepackage[toc]{appendix}
 \usepackage{bm}
 \usepackage[font=small,labelfont=bf]{caption}
 \usepackage{changepage}
@@ -19,12 +21,38 @@
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{mhchem}
+\usepackage{multirow}
 \usepackage[square,numbers]{natbib}
 \usepackage{pgfplots}
 \usepackage{subcaption}
 \usepackage{textcomp}
+\usepackage{titlesec}
 \usepackage{tikz}
+\usetikzlibrary{decorations.pathreplacing}
+\usetikzlibrary{calc}
 \usepackage{xcolor}
+
+% funky helper stuff taken from https://tex.stackexchange.com/a/172095
+% helps with braces in figs/bifurcation.tikz.tex
+\makeatletter
+\pgfdeclaremetadecoration{tikz@internal}{pre}{
+  \state{pre}[width=\pgfkeysvalueof{/pgf/decoration/pre length}, next state=main]
+  {
+    \tikz@dec@trans
+    \decoration{\pgfkeysvalueof{/pgf/decoration/pre}}
+  }
+  \state{main}[width=\pgfmetadecoratedremainingdistance-\pgfkeysvalueof{/pgf/decoration/post length}, next state=final]
+  {
+    \tikz@dec@trans
+    \decoration{\tikz@decoration@name}
+  }
+  \state{final}
+  {
+    \tikz@dec@trans
+    \decoration{\pgfkeysvalueof{/pgf/decoration/post}}
+  }
+}
+\makeatother
 
 % never break footnotes across pages -- https://tex.stackexchange.com/a/32210
 %
@@ -36,8 +64,8 @@
 \definecolor{softgrey}{HTML}{808080}
 \definecolor{softblue}{HTML}{4C70D4}
 \definecolor{softgreen}{HTML}{26AB56}
-\definecolor{softyellow}{HTML}{D9D44C}
-\definecolor{softorange}{HTML}{D67331}
+\definecolor{softyellow}{HTML}{EBE426}
+\definecolor{softorange}{HTML}{F57E16}
 \definecolor{softred}{HTML}{CF463C}
 
 % Used as an "almost" `softblue`
@@ -66,11 +94,11 @@
     {\setlength{\fboxsep}{0pt}\fbox{#1}}%
 }
 
-\newcommand{\todo}[1]{%
-    \begin{adjustwidth}{-0.5cm}{-0.5cm}{%
-        \noindent\textcolor{red}{Todo:} \bf{#1}%
-    }\end{adjustwidth}%
-}
+% \newcommand{\todo}[1]{%
+%     \begin{adjustwidth}{-0.5cm}{-0.5cm}{%
+%         \noindent\textcolor{red}{Todo:} \bf{#1}%
+%     }\end{adjustwidth}%
+% }
 
 \begin{document}
 
@@ -79,19 +107,13 @@
 \begin{titlepage}
 \begin{center}
     \Huge
-    \textbf{Title}
-
-    \vspace*{0.4cm}
-    \LARGE
-    Subtitle
-
+    \textbf{Investigations using a virtual lung model}
+    
     \vspace{1.5cm}
     \textbf{Max Sharnoff}
-
+    
     Trinity 2022 \\
-    candidate number \\
     BA Computer Science
-
 \end{center}
 \end{titlepage}
 
@@ -119,10 +141,16 @@
 \input{Ch4-results.tex}
 
 \newpage
-\input{Ch5-discussion.tex}
+\input{Ch5-conclusions.tex}
 
 \newpage
 \bibliography{ref.bib}{}
 \bibliographystyle{abbrvnat}
+
+\newpage
+
+\begin{appendices}
+\input{Appendices.tex}
+\end{appendices}
 
 \end{document}

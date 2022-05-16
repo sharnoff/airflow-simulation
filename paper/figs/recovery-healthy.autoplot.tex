@@ -1,0 +1,30 @@
+% @setfileprefix(data/constriction-stats/d2b951ba10c28e9cfafdb3a67574bd882a649ad3/)
+
+\begin{axis}[
+    name=recovery_healthy,
+    title={\textbf{Steady healthy}}, align=center,
+    % xlabel={Time (s)},
+    ylabel={Volume (L)},
+    xmin=4, xmax=24,
+    ymin=2.75, ymax=3.75,
+    xtick={4,8,12,16,20,24},
+    ytick={2.75,3,3.25,3.5,3.75},
+]
+\addplot[color=softgreen,style=very thick] coordinates {
+    % @generated(fields='1,6', range=402.., stride=10, 0.01x28s-10d@0%.csv)
+};
+\end{axis}
+
+\begin{axis}[
+    at={(recovery_healthy.outer south east)}, anchor=outer north east,
+    xlabel={Time (s)},
+    ylabel={Flow in (L/s)},
+    xmin=4, xmax=24,
+    ymin=-0.5, ymax=0.5,
+    xtick={4,8,12,16,20,24},
+    ytick={-.5,-.25,0,.25,.5},
+]
+\addplot[color=softgreen,style=very thick] coordinates {
+    % @generated(fields='1,5', range=402.., stride=10, 0.01x28s-10d@0%.csv)
+};
+\end{axis}

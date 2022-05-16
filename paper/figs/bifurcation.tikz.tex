@@ -1,0 +1,53 @@
+
+% airway drawn as:
+%
+%    #1 ----------- #2
+%          (air)
+%    #3 ----------- #4
+\def\drawairway(#1)(#2)(#3)(#4){
+    \draw[thin] (#1) -- (#2);
+    \draw[thin] (#3) -- (#4);
+}
+\def\drawradius(#1)(#2)[#3]#4{
+    \filldraw (#1) circle (.05);
+    \draw[thin] (#1) -- (#2) node[pos=0,#3] {#4};
+}
+\def\drawlength(#1)(#2)[#3]#4{
+    \draw[thick,decorate,decoration={brace,raise=.5mm,pre=moveto,pre length=.5mm,post=moveto,post length=.5mm}]
+        (#1) -- (#2) node[pos=0.5,#3] {#4};
+}
+
+%           [#3]{#4}
+%    #1  ------------->  #2 o [#5]{ #6 }
+\def\drawflowandpressure(#1)(#2)[#3]#4[#5]#6{
+    \draw[->,thick,shorten <=2mm,shorten >=4mm] (#1) -- (#2) node[pos=.5,scale=.6,#3] {#4};
+    \filldraw (#2) circle (.05);
+    \node at (#2) [scale=.75,#5] {#6};
+}
+
+%%% Left-hand info
+
+% parent airway
+\drawairway(1.5,2)(1.5,4)(2.5,2)(2.5,4)
+\drawradius(2,3)(2.5,3)[yshift=.25cm]{$r_i$}
+\drawlength(2.5,4)(2.5,2)[xshift=.5cm]{$L_i$}
+% left branch
+\drawairway(0,.5)(1.5,2)(.5,0)(2,1.5)
+\drawradius(1,1)(1.25,.75)[yshift=.2cm,xshift=.2cm]{$r_j$}
+\drawlength(0,.5)(1.5,2)[xshift=-.5cm,yshift=.5cm]{$L_j$}
+% left branch
+\drawairway(3.5,0)(2,1.5)(4,.5)(2.5,2)
+\drawradius(3,1)(3.25,1.25)[yshift=.2cm,xshift=-.2cm]{$r_k$}
+\drawlength(3.5,0)(2,1.5)[xshift=-.5cm,yshift=-.5cm]{$L_k$}
+
+%%% Right-hand info (x+6)
+
+% parent airway
+\drawairway(7.5,2)(7.5,4)(8.5,2)(8.5,4)
+\drawflowandpressure(8,4)(8,2)[xshift=4.5mm]{$Q_i$}[xshift=2.5mm]{$P_i$}
+% left branch
+\drawairway(6,.5)(7.5,2)(6.5,0)(8,1.5)
+\drawflowandpressure(7.75,1.75)(6.25,.25)[xshift=-2.2mm,yshift=2.2mm]{$Q_j$}[xshift=3mm]{$P_j$}
+% right branch
+\drawairway(9.5,0)(8,1.5)(10,.5)(8.5,2)
+\drawflowandpressure(8.25,1.75)(9.75,0.25)[xshift=2.5mm,yshift=2.5mm]{$Q_k$}[xshift=2.5mm]{$P_k$}

@@ -1,0 +1,58 @@
+\pgfplotsset{
+    width=.45\textwidth,
+    height=.45\textwidth,
+}
+
+\begin{axis}[
+    name=sharp_recovery,
+    xmin=4, xmax=10,
+    xtick={4,5,6,7,8,9,10},
+    xlabel={Time (s)},
+    ylabel={Volume (L)},
+    ymin=2.75, ymax=3.75,
+    ytick={2.75,3,3.25,3.5,3.75},
+    legend pos=north west,
+    legend style={nodes={scale=0.6, transform shape}}, % adapted from https://tex.stackexchange.com/a/301112
+]
+
+% healthy
+\addplot[color=softgreen,style=thick] coordinates {
+    % @setfileprefix(data/constriction-stats/d2b951ba10c28e9cfafdb3a67574bd882a649ad3/)
+    % @generated(fields='1,6', range=402..=1002, stride=2, 0.01x28s-10d@0%.csv)
+};
+\addlegendentry{Healthy}
+% recovery
+\addplot[color=softblue,style=thick] coordinates {
+    % @setfileprefix(data/degrade-and-return/3ed8c5cf2279df60ea4b7b353a8c91b6aa202a51/)
+    % @generated(fields='1,6', range=2.., stride=2, 10d@80%-10s-tanh:6.10s-0.1s-1.5s.csv)
+};
+\addlegendentry{Constrict and recover}
+\end{axis}
+
+\begin{axis}[
+    at={(sharp_recovery.outer south east)}, anchor=outer south west,
+    xmin=4, xmax=10,
+    xtick={4,5,6,7,8,9,10},
+    xlabel={Time (s)},
+    ylabel={Flow in (L/s)},
+    ymin=-1.25, ymax=1.25,
+    ytick={-1,-.5,0,.5,1},
+    compat=1.3,
+    legend pos=north east,
+    legend style={nodes={scale=0.6, transform shape}}, % adapted from https://tex.stackexchange.com/a/301112
+]
+
+% healthy
+\addplot[color=softgreen,style=thick] coordinates {
+    % @setfileprefix(data/constriction-stats/d2b951ba10c28e9cfafdb3a67574bd882a649ad3/)
+    % @generated(fields='1,5', range=402..=1002, stride=2, 0.01x28s-10d@0%.csv)
+};
+\addlegendentry{Healthy}
+% recovery
+\addplot[color=softblue,style=thick] coordinates {
+    % @setfileprefix(data/degrade-and-return/3ed8c5cf2279df60ea4b7b353a8c91b6aa202a51/)
+    % @generated(fields='1,5', range=2.., stride=2, 10d@80%-10s-tanh:6.10s-0.1s-1.5s.csv)
+};
+\addlegendentry{Constrict and recover}
+
+\end{axis}

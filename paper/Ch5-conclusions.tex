@@ -1,0 +1,54 @@
+% Ch5-conclusions.tex
+%
+% vim: set ft=tex:
+\section{Conclusions}
+
+\subsection{Summary of key results} \label{sec:summary-of-key-results}
+
+In this paper, we have used recent, established mathematical models to investigate the
+characteristics of airflow in the lungs under a variety of conditions. In particular, we've
+demonstrated a clear association between maximum acceleration in flow and airway constrict, in a
+way that is not as visible in just the maximum speed of flow reached.
+
+From there, we introduce the ``constrict and recover'' pattern, where the airways in an
+initially-healthy lung are gradually constricted to a desired level and after a delay, they
+gradually return back to the healthy state. The flow characteristics as the constriction level
+changes appear \textit{similar} to a composition of the flows from intermediate constriction levels,
+and we show the way that this effect is rooted in the basic mechanics of the system, explaining why
+this causes the airflow to appear abnormal at certain points.
+
+Extrapolating from this, we find a particular worst-case scenario wherein the quick correction from
+one volume to the ``target'' volume for the pleural pressure cauess an extreme spike in the airflow
+velocity.
+
+And finally, we show by asymmetric constriction that the primary source of resistance is not coming
+from the trachea. This is not \textit{necessarily} incorrect, but it is certainly interesting,
+considering that prior studies have shown that the majority of airflow resistance in the lungs comes
+from the larger conducting airways. One possible explanation for this is the exact method we were
+using for whole lung constriction~--~in practice it \textit{may} be more likely that typical airway
+constriction (e.g., from asthma) has a greater proportional effect on the larger airways.
+
+\subsection{Limitations and further work} \label{sec:limitations-and-further-work}
+
+There are of course a number of areas of possible improvement for the our experiments~--~a number of
+which have been briefly mentioned already, but they bear repeating. From a purely technical
+standpoint, it's certainly possible to obtain more efficient models with a better matrix
+factorisation algorithm; GMRES will likely perform much better, but perhaps the most significant
+gains in simulation size and speed would come from parallel factorisation.
+
+There are also a number of avenues for improvement in the accuracy of the simulation: An immediate
+improvement would be to use models synthesized from lung scans, as in \cite{FoyEtAl2017}. But
+particularly as we increase constriction, it is also unreasonable to expect that the pleural
+pressure will remain the same~--~a model of pleural pressure that reacts to the lung volume in a
+similar way to humans may provide a more accurate result when looking at severe constriction.
+
+\breakpars
+
+Looking forward, there are possible applications of this research outside of this field~--~fast and
+efficient simulation provides a key opportunity to use this tool to provide data for data-intensive
+applications, like machine learning (in \cite{SuoEtAl2021}, for example, data was gathered from a
+physical system where it could have been done by modifying this software).
+
+There are also possibilities within this space. Given the results on maximum flow acceleration,
+there may room for new multiple-breath washout indices that are more sensitive to constriction that
+is not as severe.

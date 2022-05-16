@@ -1,0 +1,31 @@
+% @setfileprefix(data/degrade-and-return/3ed8c5cf2279df60ea4b7b353a8c91b6aa202a51/)
+
+\begin{axis}[
+    name=recovery,
+    title={\textbf{Constriction and recovery}}, align=center,
+    at={(recovery_healthy.outer north east)}, anchor=outer north west,
+    % xlabel={Time (s)},
+    % ylabel={Volume (L)},
+    xmin=4, xmax=24,
+    ymin=2.75, ymax=3.75,
+    xtick={4,8,12,16,20,24},
+    ytick={2.75,3,3.25,3.5,3.75},
+]
+\addplot[color=softblue,style=very thick] coordinates {
+    % @generated(fields='1,6', range=402.., stride=10, 10d@50%-28s-tanh:8.00s-4s-4s.csv)
+};
+\end{axis}
+
+\begin{axis}[
+    at={(recovery.outer south east)}, anchor=outer north east,
+    xlabel={Time (s)},
+    % ylabel={Flow in (L/s)},
+    xmin=4, xmax=24,
+    ymin=-0.5, ymax=0.5,
+    xtick={4,8,12,16,20,24},
+    ytick={-.5,-.25,0,.25,.5},
+]
+\addplot[color=softblue,style=very thick] coordinates {
+    % @generated(fields='1,5', range=402.., stride=10, 10d@50%-28s-tanh:8.00s-4s-4s.csv)
+};
+\end{axis}

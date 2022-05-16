@@ -37,6 +37,11 @@ pub struct RootGenerationConfig {
     ///
     /// If present, overrides the default given by [`TRACHEA_RADIUS`]
     pub trachea_radius: Option<Float>,
+
+    /// The radius of a 'degraded' trachea, in meters
+    ///
+    /// If present, overrides the value given by the nominal trachea radius
+    pub trachea_radius_abnormal: Option<Float>,
 }
 
 /// The fallback configuration for the parameters in each [`GenerationConfig`]

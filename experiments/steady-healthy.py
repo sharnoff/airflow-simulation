@@ -2,13 +2,14 @@
 #
 # Runs a model without any degradation for a duration.
 
-from runner import bin_hash, Runner
+import base
+from runner import bin_hash, Runner, run_parallel
 from hashlib import sha1
 from pathlib import Path
 
 def main():
     total_times = [1004] # +4 so that we include something _starting_ at 1k
-    depths = [6]
+    depths = [10]
 
     hasher = sha1()
     hasher.update(bin_hash())
@@ -19,18 +20,20 @@ def main():
     Path('data/steady-healthy').mkdir(parents=False, exist_ok=True)
     Path(f'data/steady-healthy/{template_hash}').mkdir(exist_ok=True)
 
-    print('running...')
-
-    count = len(total_times) * len(depths)
-
-    i = 0
+    runners = []
     for t in total_times:
         for d in depths:
-            # Status indicator
-            print(f'{i}/{count}...\r', end='', flush=True)
+            r_tuple = make_runner(template_hash, t, d)
+            if r_tuple is not None:
+                runners.append(r_tuple)
 
-            run(template_hash, t, d)
-            i += 1
+    print(f'running {len(runners)} trials...')
+
+    if len(runners) != 0:
+        results = run_parallel(runners)
+        for returncode, filename in results:
+            if returncode != 0:
+                print(f'warning: trial {filename} exited with code {returncode}')
 
     print('done.', end='\n\n')
     print(f'check \'data/steady-healthy/{template_hash}/*.csv\' for results')
@@ -38,8 +41,8 @@ def main():
 TEMPLATE = """
 {{
     "config": {{
-        "branch_length_decrease": 0.75,
-        "branch_radius_decrease": 0.75,
+        "branch_length_decrease": """+str(base.BRANCH_LENGTH_DECREASE)+""",
+        "branch_radius_decrease": """+str(base.BRANCH_RADIUS_DECREASE)+""",
         "split_angle": 0.8,
         "max_depth": {depth}
     }},
@@ -49,20 +52,18 @@ TEMPLATE = """
 }}
 """
 
-def run(template_hash: str, total_time: float, depth: int) -> None:
+def make_runner(template_hash: str, total_time: float, depth: int) -> tuple[Runner, str] | None:
+    name = f'{total_time}@{depth}d'
+    path = f'data/steady-healthy/{template_hash}/{name}.csv'
+
+    if Path(path).exists():
+        return
+
     fmt_args = {
         'depth': depth,
     }
     config = TEMPLATE.format_map(fmt_args)
-
-    output, exit_code = Runner(config, total_time).run()
-    name = f'{total_time}@{depth}d'
-    path = f'data/steady-healthy/{template_hash}/{name}.csv'
-    with open(path, 'w+') as f:
-        f.write(output)
-
-    if exit_code != 0:
-        print(f'warning: trial {name} exited with code {exit_code}')
+    return (Runner(config, total_time, path), name)
 
 if __name__ == '__main__':
     main()

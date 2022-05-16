@@ -11,50 +11,65 @@
 # 'data/degrade-and-return/' directory in the repository root, using file names with the following
 # template:
 #
-#   $TEMPLATE_HASH/$TOTAL_TIME-$ONSET-$METHOD:$CHANGE-$UNHEALTHY@$UNHEALTHY_RADIUS
+#   {TEMPLATE_HASH}/{DEPTH}d@{UNHEALTHY}%-{TOTAL_TIME}s-{METHOD}:{ONSET}s-{CHANGE}s-{UNHEALTHY}s
 
-from runner import bin_hash, Runner
+import base
+from runner import bin_hash, Runner, run_parallel
+import csv
 from hashlib import sha1
 from pathlib import Path
 
+DATADIR = 'data/degrade-and-return'
+
 def main():
-    total_times = [16]
-    onsets = [4 + 0.5*i for i in range(9)] # 4, 4.5, ... 8
-    methods = ['linear','tanh','cubic','trig']
-    changes = [4]
-    unhealthies = [4]
-    unhealthy_radii = [0.075]
+    total_time = 10
+    depth = 10
+    onsets = [6.1]
+    method = 'tanh'
+    transition_time = 0.1
+    stay_degraded_for = 1.5
+    constrict_by = 80
+
+    # total_time = 28
+    # depth = 10
+    # onsets = [8 + 0.05*i for i in range(81)] # 8, 8.05, 8.1, ... 12
+    # method = 'tanh' # possible: ['linear','tanh','cubic','trig']
+    # transition_time = 4 # number of seconds to transition on either end
+    # stay_degraded_for = 4 # stays degraded for 4 seconds
+    # constrict_by = 50 # 50%
 
     hasher = sha1()
     hasher.update(bin_hash())
     hasher.update(TEMPLATE.encode('utf-8'))
     template_hash = hasher.hexdigest()
 
-    count = len(total_times) * len(onsets) * len(methods) * len(changes) * len(unhealthies) * len(unhealthy_radii)
-
     # Ensure that our directory is there:
-    Path('data/degrade-and-return').mkdir(parents=False, exist_ok=True)
-    Path(f'data/degrade-and-return/{template_hash}').mkdir(exist_ok=True)
+    Path(DATADIR).mkdir(parents=False, exist_ok=True)
+    Path(f'{DATADIR}/{template_hash}').mkdir(exist_ok=True)
 
     print('running...')
 
-    # Most of these lists will always only have a single item, but it's still worth doing the
-    # iteration like this.
-    i = 0
-    for t in total_times:
-        for o in onsets:
-            for m in methods:
-                for c in changes:
-                    for u in unhealthies:
-                        for r in unhealthy_radii:
-                            # Status indicator
-                            print(f'{i}/{count}...\r', end='', flush=True)
+    runners = []
+    for start in onsets:
+        r_tuple = make_runner(template_hash, depth, total_time, method, start, transition_time,
+                stay_degraded_for, constrict_by)
+        if r_tuple is not None:
+            runners.append(r_tuple)
 
-                            run(template_hash, t, o, m, c, u, r)
-                            i += 1
+    if len(runners) != 0:
+        results = run_parallel(runners)
+        for returncode, filename in results:
+            if returncode != 0:
+                print(f'warning: trial {filename} exited with code {returncode}')
 
-    print('done.', end='\n\n')
-    print(f'check \'data/degrade-and-return/{template_hash}/*.csv\' for results')
+    print('done generating initial data')
+    print('producing summary...')
+    make_summary(template_hash, depth, total_time, method, onsets, transition_time,
+            stay_degraded_for, constrict_by)
+    print('all jobs complete.', end='\n\n')
+
+
+    print(f'check \'{DATADIR}/{template_hash}/*.csv\' for results')
 
 TEMPLATE = """
 {{
@@ -69,49 +84,93 @@ TEMPLATE = """
 		]
 	}},
 	"config": {{
-		"branch_length_decrease": 0.75,
-		"branch_radius_decrease": 0.75,
-		"split_angle": 0.8,
-		"max_depth": 6
-	}},
-	"root": {{
-		"type": "manual",
-		"left_override": {{ "relative_angle": 0.7, "relative_radius_abnormal": {radius} }},
-		"left": {{
-			"type": "auto",
-			"child_angles": [1.2, 0.3, {{ "reset_after": 2 }}],
-			"branch_length_decrease": [0.65, 0.9, {{ "reset_after": 1 }}]
-		}},
-		"right_override": {{ "relative_angle": 0.7, "relative_radius_abnormal": {radius} }},
-		"right": {{
-			"type": "auto",
-			"child_angles": [0.3, 1.2, {{ "reset_after": 2 }}],
-			"branch_length_decrease": [0.9, 0.65, {{ "reset_after": 1 }}]
-		}}
+		"branch_length_decrease": """+str(base.BRANCH_LENGTH_DECREASE)+""",
+		"branch_radius_decrease": """+str(base.BRANCH_RADIUS_DECREASE)+""",
+        "split_angle": 0.8,
+		"max_depth": {depth},
+        "trachea_radius": """+str(base.TRACHEA_RADIUS)+""",
+        "trachea_radius_abnormal": {abnormal_trachea_radius}
+    }},
+    "root": {{
+        "type": "auto"
 	}}
 }}
 """
 
-def run(template_hash: str, total_time: float, onset: float, method: str, change: float,
-        unhealthy: float, unhealthy_radius: float) -> None:
+def trial_filename(depth: int, total_time: int, method: str, onset: float, transition_time: float,
+        degraded_for: float, constrict_by: int) -> str:
+    return f'{depth}d@{constrict_by}%-{total_time}s-{method}:{onset:.2f}s-{transition_time}s-{degraded_for}s.csv'
+
+def make_runner(template_hash: str, depth: int, total_time: int, method: str, onset: float,
+        transition_time: float, degraded_for: float, constrict_by: int) -> tuple[Runner, str] | None:
+    filename = trial_filename(depth, total_time, method, onset, transition_time, degraded_for,
+            constrict_by)
+    path = f'{DATADIR}/{template_hash}/{filename}'
+
+    if Path(path).exists():
+        return None
+
     fmt_args = {
         'interpolate_method': method,
         'start_degrade': onset,
-        'start_degraded': onset + change,
-        'end_degraded': onset + change + unhealthy,
-        'end_degrade': onset + change + unhealthy + change,
-        'radius': unhealthy_radius,
+        'start_degraded': onset + transition_time,
+        'end_degraded': onset + transition_time + degraded_for,
+        'end_degrade': onset + transition_time + degraded_for + transition_time,
+        'depth': depth,
+        'abnormal_trachea_radius': base.TRACHEA_RADIUS * (1 - 0.01*constrict_by),
     }
     config = TEMPLATE.format_map(fmt_args)
+    return (Runner(config, total_time, path), filename)
 
-    output, exit_code = Runner(config, total_time).run()
-    name = f'{total_time}-{onset}-{method}:{change}-{unhealthy}@{unhealthy_radius}'
-    path = f'data/degrade-and-return/{template_hash}/{name}.csv'
-    with open(path, 'w+') as f:
-        f.write(output)
+def make_summary(template_hash: str, depth: int, total_time: int, method: str, onsets: list[float],
+        transition_time: float, degraded_for: float, constrict_by: int) -> None:
+    results = []
 
-    if exit_code != 0:
-        print(f'warning: trial {name} exited with code {exit_code}')
+    for onset in onsets:
+        start_recovery = onset + transition_time + degraded_for
+        end_recovery = start_recovery + transition_time
+
+        filename = trial_filename(depth, total_time, method, onset, transition_time, degraded_for,
+                constrict_by)
+        path = f'{DATADIR}/{template_hash}/{filename}'
+
+        max_flow = None # maximum MAGNITUDE flow -- may be negative or positive
+        max_time = None # time at which max flow occured
+        max_constriction = None # constriction level at which max flow occured
+
+        with open(path, 'r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                time = float(row['time'])
+                flow = float(row['flow in'])
+
+                if time < start_recovery:
+                    continue
+                elif time > end_recovery:
+                    break
+
+                if max_flow is None or abs(flow) > abs(max_flow):
+                    max_flow = flow
+                    max_time = time
+                    max_constriction = 0.01 * (constrict_by * float(row['degradation ratio']))
+
+        if max_flow is None:
+            raise Exception(f"trial {filename}: simulation didn't include recovery time range")
+
+        results.append((onset, max_flow, max_time, max_constriction))
+
+    summary_filename = f'summary-{depth}d@{constrict_by}%-{total_time}s-{method}:-{transition_time}s-{degraded_for}s.csv'
+    summary_path = f'{DATADIR}/{template_hash}/{summary_filename}'
+
+    with open(summary_path, 'w+') as f:
+        f.write('onset,max flow,abs max flow,max flow time,constriction at max flow\n')
+
+        for onset, max_flow, max_time, max_constriction in results:
+            # scale onset and max_time so that they're relative to the breath cycles:
+            onset %= 4.0
+            max_time %= 4.0
+
+            f.write(f'{onset:.2f},{max_flow},{abs(max_flow)},{max_time:.2f},{max_constriction}\n')
 
 if __name__ == '__main__':
     main()

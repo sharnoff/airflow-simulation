@@ -5,17 +5,17 @@
 
 Broadly speaking, this section comes in two parts; first defining the more theoretical underpinnings
 of the model used for simulation throughout the rest of the paper, followed by some detail on the
-implementation in practice. Much of the theory is adapted from \cite{Foy2018}, with minor
-modifications.
+implementation in practice. Much of the theory is adapted from the airflow model used in
+\cite{FoyEtAl2017}, with minor modifications.
 
 At a high level, we approximate the structure of the lungs \textit{acinar regions} and represent the
-effects of the diaphragm as \textit{pleural pressure} outside these acinar regions. The simulation
-itself uses the implicit Euler method, giving strong numerical stability at the cost of solving a
-complex system of equations (\autoref{eq:volume-cons-naive}) at each timestep.
+effects of the diaphragm as a uniform \textit{pleural pressure} outside these acinar regions. The
+simulation itself uses the implicit Euler method, giving strong numerical stability at the cost of
+solving a complex system of equations (\autoref{eq:volume-cons-naive}) at each timestep.
 
-At the implementation level, we modify the naive equations above to improve floating-point accuracy,
-and demonstrate the benefits of using sparse matrices~--~even without particularly complex solver
-methods.
+At the implementation level, we modify the initial naive equations above to improve floating-point
+accuracy, and demonstrate the benefits of using sparse matrices~--~even without a particularly
+complex solver method.
 
 \subsection{Approximating the lungs} \label{sec:approximating-lungs}
 
@@ -23,66 +23,75 @@ As with any computer simulation of physical processes, approximation is required
 to the inherent limitations of classical computers. There are three distinct simplifications made
 for the purposes of computational feasibility that we will discuss here.
 
-The first of these simplifications is that we assume our airflow is one-dimensional and
-incompressible. Modelling air inside the lungs as three dimensional or compressible could be more
-accurate, but would also require significantly more computational resources. Indeed, the key result
-of \cite{Foy2018} is that making this simplification for airflow in the lungs retains the accuracy
-of the model~--~the small-scale differences that may be different from complex airflow modelling do
-not appear to affect the large-scale behavior.
+First, however, it is worth establishing some terminology: When referring to the simulated
+components of a lung, we use the term \textit{branch} instead of bronchiole because the meaning is
+intended to be slightly different. All models are composed of bifurcation branches (those that split
+into two child branches) and acinar branches (akin to a terminal bronchiole and the attached
+acinus).
 
-We also approximate the movement of the diaphragm and expansion and contraction of the thoracic
-cavity with a singular measure of \textit{pleural pressure}, a uniform pressure exerted on all the
-acini in the lungs. Some prior work uses a gradient for pleural pressure, modelling the effects of
-gravity. We chose to omit this for simplicity, due to the relatively small magnitude of these
-gradients\footnotemark\ As a consequence, the position of each bronchial tube in a given model does
-not affect the mechanics of its simulation.
+\breakpars
+
+With terminology out of the way, the first simplification is that we assume our airflow is
+one-dimensional and incompressible. Modelling air inside the lungs as three dimensional or
+compressible could be more accurate, but would also require significantly more computational
+resources. Prior studies have shown that making this simplification retains the accuracy of the
+model~--~the small-scale differences that may arise when compared with actual lungs do not appear to
+affect the large-scale behavior.
+
+We also simulate groups of many acini at once by modelling them as a single, balloon-like air sac.
+With the average pair of human lungs containing approximately 300 million acini, assigning a unique
+set of variables for each one would be infeasible on even the most powerful consumer-grade
+computers. So we approximate arbitrarily large numbers of acini as \textit{acinar regions},
+modelling their elastic behavior and interaction with the pleural pressure in the same way as
+individual acini would be modelled.
+
+And finally, we assume that the influence of gravity on pleural pressure is negligible. Prior
+studies have shown that a gradient in pleural pressure from gravity exists, and \cite{FoyEtAl2017}
+use a gradient for pleural pressure in their model. We chose to omit this for simplicity, due to the
+relatively small magnitude of these gradients\footnotemark~--~though it could be added to the model
+with little effort. Without this gradient, the position of each branch in a given model has no
+effect on the mechanics of its simulation.
 
 \footnotetext{
-    \cite{Foy2018} draws upon prior studies to use a gravitational gradient strength of 2\%/cm,
-    meaning that the maximum and minimum pleural pressures at a given point in time differ by
-    exactly 2\%.
-
-    \todo{
-        actually I'm not sure what's going on here. the units in the equation don't work. (page 29
-        [pdf pg 34])
-    }
+    \cite{FoyEtAl2017} draws upon prior studies to use a gravitational gradient strength of 1.5\%/cm.
 }
 
-Finally, we simulate groups of many acini at once by modelling them as a single, balloon-like air
-sac. The average human pair of lungs contains approximately 300 million acini~--~far too many to
-assign unique variables to each one in a system of equations. So we approximate arbitrarily large
-numbers of acini as \textit{acinar regions}, modelling their elastic behavior and interaction with
-the pleural pressure in the same way as individual acini would be.
-
-\subsection{Simultaneous equations}
+\subsection{Naive simultaneous equations} \label{sec:simultaneous-equations}
 
 This section provides a summary and brief description of the four simultaneous equations that govern
-the state of our system, the first of which is the following:
+the state of our simulation, before the modifications made in \autoref{sec:modified-equations}.
+Together, the system of equations must be solved at each timestep to determine the current state.
+The first equation is the following:
 
 \begin{equation}
-    P_{\text{parent}(i)} - P_i = R(i) Q_i
+    P_{\text{parent}(i)}^{t_n} - P_i^{t_n} = R^{t_n}(i) Q_i^{t_n}
 \end{equation}
 
 \noindent
 This specifies that the pressure differential between the distal end of branch $i$ and its parent
 must equal the pressure from the resistance from the flow through this branch $i$. For the ``root''
-branch, $P_{\text{parent}(i)}$ is the pressure at the trachea~--~typically atmospheric pressure.
+branch, $P_{\text{parent}(i)}$ gives the pressure at the trachea~--~typically atmospheric pressure.
+Additionally, all variable terms are parameterised by the current time $t_n$.
 
-The resistance term $R(i)$ is defined as following function, as given by Pedley et al. (1970):
+The resistance term $R^{t_n}(i)$ for a branch $i$ is defined as following function, as given by
+\cite{PedleyEtAl1970b}:
 
 \begin{equation*}
-    R(i) = \frac{2 \mu L_i c}{\pi r_i^4} \left( \frac{4 \rho |Q_i|}{\mu \pi L_i} \right)^{\frac{1}{2}}
+    R^{t_n}(i) = \frac{2 \mu L_i C}{\pi r_i^4} \left( \frac{4 \rho |Q_i^t|}{\mu \pi L_i} \right)^{\frac{1}{2}}
 \end{equation*}
 
 The parenthesized term corresponds to the Reynold's number of the flow, scaled by the ratio of the
-diameter of the branch to its length $L_i$. $r_i$ is the radius of branch $i$, $\mu$ is the
-viscosity of the air, and $c = 1.85$ is a correction constant.
+diameter of the branch to its length $L_i$. $r_i$ is the radius of the branch, $\mu$ is the
+viscosity of the air, and $C = 1.85$ is a correction constant originally derived by the same authors
+in \cite{PedleyEtAl1970a}.
 
-The second equation ensures incompressibility; the flow through a bifurcation must equal the sum of
-the flow through its children:
+\breakpars
+
+The second equation comes as a restriction from incompressibility: the flow through a bifurcation
+branch must equal the sum of the flow through its children:
 
 \begin{equation}
-    Q_i = \sum Q_{\text{child}}
+    Q_i^{t_n} = \sum Q_{\text{child}}^{t_n}
 \end{equation}
 
 \noindent
@@ -92,25 +101,51 @@ The third equation maintains that the volume of an acinar region changes with th
 of it for the given timestep:
 
 \begin{equation}
-    V_i^t = V_i^{t-1} + dt Q_i^t
+    V_i^{t_n} = V_i^{t_{n-1}} + dt Q_i^{t_n}
 \end{equation}
 
 \noindent
-where $dt$ is the timestep size, $t$ refers to the current timestep, and $V_i$ is the volume of the
+where $dt$ is the timestep size, $t_n$ refers to the current timestep, and $V_i$ is the volume of the
 acinar region of branch $i$.
 
 The final equation defines the elastic force of each acinar region, relating the pressure it exerts
 on its branch to the volume of the region itself and the pressure outside it:
 
 \begin{equation} \label{eq:volume-cons-naive}
-    P_i = \frac{1}{C_i} V_i + P_{pl}(t)
+    P_i^{t_n} = \frac{1}{C_i} V_i^{t_n} + P_{\text{pl}}(t_n)
 \end{equation}
 
 \noindent
-where $P_{pl}(t)$ is the pleural pressure (i.e. the ``pressure'' from the diaphragm, outside the
-acinar region) at the current time and $C_i$ is the \textit{compliance} of the acinar region of
-branch $i$. The pleural pressure changes over time to mimic human breathing patterns~--~hence why it
-is parameterised by $t$.
+where $P_{\text{pl}}(t_n)$ gives the pleural pressure at the current time and $C_i$ is the
+compliance of the acinar region of branch $i$. The pleural pressure changes over time to mimic human
+breathing patterns, and is independent of the state of the lungs~--~hence why it is parameterised by
+$t$. The pleural pressure for a given simulation follows a sinusoidal function given by its initial,
+minimum, and maximum values and its period $T$. This function is defined in
+\autoref{appendix:equations}, and typical values are given in \autoref{sec:results}.
+
+\begin{figure}[t]
+    \centering
+    \begin{subfigure}[t]{.7\textwidth}
+        \begin{tikzpicture}
+            \input{figs/bifurcation.tikz.tex}
+        \end{tikzpicture}
+        \subcaption{
+            Bifurcation from parent branch $i$ to children $j$ and $k$, both dimensions (left) and
+            state (right).
+    }
+    \end{subfigure}
+    \par\bigskip
+    \begin{subfigure}[t]{.4\textwidth}
+        \begin{tikzpicture}[scale=.75]
+            \input{figs/acinar.tikz.tex}
+        \end{tikzpicture}
+        \subcaption{Acinar region and attached branch}
+    \end{subfigure}
+    \caption{
+        2-dimensional cross-section of a modelled bifurcation (a) and acinar region (b), labelled
+        with the values composing the equations in \autoref{sec:simultaneous-equations}.
+    }
+\end{figure}
 
 \subsection{Modelling in the abstract} \label{sec:modelling-in-the-abstract}
 
@@ -235,24 +270,22 @@ step.
 The same substitutions also apply to our representations of the state of the model and the
 optimization function used for Newton's method, as shown in \autoref{sec:modelling-in-the-abstract}.
 
-\subsection{Sparse matrices}
+\subsection{Sparse matrices} \label{sec:sparse-matrices}
 
-A key observation that aiding in simulation speed is that the Jacobean of our optimization function
+A key observation that aiding in simulation speed is that the Jacobian of our optimization function
 $f$ has only $\mathcal{O}(n)$ entries~--~which allows for dramatic storage space and runtime
 savings. This optimization is crucial for practically running simulations up to a high depth on a
 single computer.
 
-We used sparse matrices, solving the equations with a sparse gaussian elimination. Other methods
+We used sparse matrices, solving the equations with a sparse Gaussian elimination. Other methods
 (such as GMRES) were initially considered but not used, due in equal parts to lack of library
-support and the sufficiency of the simpler gaussian elimination.\footnotemark\ The increase in
+support and the sufficiency of the simpler Gaussian elimination.\footnotemark\ The increase in
 execution speed from dense to sparse matrices is quite significant, as demonstrated in
 \autoref{fig:sparse-speed}. The observed time for a simulation tick~--~which is roughly proportional
 to the time spent solving the system of equations~--~is still not linear in the number of nodes,
 however: fitting the sparse matrix timings to a power series model gives an exponent of 1.97 and
 $R^2$ of 0.989. Fitting a power series to the dense matrix timings gives an exponent of 3.35 and
 $R^2$ of 0.997; clearly significantly worse.
-
-\todo{ not familiar with statistical language. what's the best way to write the sentences above? }
 
 \footnotetext{
     There are, of course, \textit{many} sparse matrix libraries in existence. The project was
@@ -263,7 +296,7 @@ $R^2$ of 0.997; clearly significantly worse.
 \begin{figure}[p!]
     \centering
     \begin{tikzpicture}
-        \input{figs/sparse-speed-comparison.pgfplot}
+        \input{figs/sparse-speed-comparison.tex}
     \end{tikzpicture}
     \caption{
         Time to compute a single simulation tick, with dense versus sparse matrices. Models were
@@ -279,7 +312,7 @@ $R^2$ of 0.997; clearly significantly worse.
     \begin{subfigure}[t]{.47\textwidth}
         \centering
         \tightbox{\includegraphics[width=.9\linewidth]{figs/sparse/separate-rev-big.png}}
-        \caption{ The sparsity pattern of Jacobeans as implemented }
+        \caption{ The sparsity pattern of Jacobians as implemented }
         \label{subfig:sparse-organization-implemented}
     \end{subfigure}%
     \hspace{1em}%
@@ -301,8 +334,8 @@ $R^2$ of 0.997; clearly significantly worse.
 \end{figure}
 
 Although the improvement from $\mathcal{O}(x^{3.35})$ to $\mathcal{O}(x^{1.97})$ is significant, it
-is possible that other orderings of values within the Jacobean may be better-optimized for sparse
-gaussian elimination. \autoref{fig:sparse-organization} provides a visual comparison between the
+is possible that other orderings of values within the Jacobian may be better-optimized for sparse
+Gaussian elimination. \autoref{fig:sparse-organization} provides a visual comparison between the
 sparsity pattern that was used in the software developed for this paper and a hypothetical
 alternative. The current layout used places all variables and equations of a certain type at
 consecuitve indexes, i.e. $(P\dots, Q\dots, V\dots)$ instead of e.g.
@@ -312,9 +345,9 @@ $(P_0,Q_0,V_0,\,P_1,Q_1,V_1,\,\dots)$, with variables and equations for parent n
 As context for \autoref{fig:sparse-organization} however, it is important to note that it is not
 possible for the system of equations to be simply organized into an upper- or lower-triangular
 matrix; each equation is composed of at least two variables. With this option unavailable, we did
-not assess alternate orderings of values within the Jacobean.
+not assess alternate orderings of values within the Jacobian.
 
-\subsection{Procedural lung generation \& configuration}
+\subsection{Procedural lung generation \& configuration} \label{sec:procedural-generation}
 
 As part of the simluation software developed for this paper, there are a number of configurable
 parameters~--~primarily encapsulating the structure of the lungs and how they change over the course
@@ -322,6 +355,7 @@ of the simulation. Listing them exhaustively, the parameters are:
 
 \begin{itemize}
 \item Lung structure (the tree formed by the relationship between branches)
+\item Approximate typical lung FRC
 \item Branch length, as relative to the parent
 \item Branch radius (healthy \& degraded), relative to the parent
 \item Acinar region \textit{relative compliance} (healthy \& degraded)
@@ -330,7 +364,8 @@ of the simulation. Listing them exhaustively, the parameters are:
     \begin{itemize}
     \item Multiple interpolation functions to transition between keyframes
     \end{itemize}
-\item Pleural pressure wave characteristics (initial value, mean, amplitude, and period)
+\item Pleural pressure wave characteristics (initial value, mean, amplitude, and period), as well as
+    the ``normal'' maximum value (see below).
 \end{itemize}
 
 The specification of ``healthy'' and ``degraded'' allows us to define and transition between two
@@ -348,25 +383,57 @@ The most important factor is that the volume within each acinar region is conser
 It is also worth clarifying the meaning of \textit{relative compliance} in the list above. In order
 to ensure that the total volume of the lungs remains consistent with human anatomy, the compliance
 of each acinar region is linearly scaled so that the total volume from all acinar regions filled at
-atmospheric pressure is 2.0 liters.
-
-\todo{
-    This should probably not be 2 liters; looking at the actual data, the starting volume of the
-    lung doesn't really correspond to FRC \textit{or} FRC + tidal volume, so it should be closer.
-    There's also the issue that the tidal volume that the simulation reports is \textit{much}, much
-    less than what it should be~--~like... 40 milliliters kind of small.
-
-    This \textit{probably} has something to do with the compliances being much smaller than what
-    Foy's paper had, but I'm still really not sure why that was happening.
-}
-
-\breakpars
-
-A comparison and analysis of transition interpolation functions is given in \autoref{sec:results},
-alongside their definitions.
+atmospheric pressure would give the configured FRC of the lungs at the ``normal'' maximum pleural
+pressure (a separately-configurable value). For typical values (e.g. those described in
+\autoref{sec:results}), the total lung compliance is approximately $2.0 \times 10^{-6}
+\text{m}^3/\text{Pa}$ (approximately 0.2 L/cm\ce{H_2O}).
 
 \breakpars
 
 The details of the configuration format itself are outside the scope of this paper, but the
 configurable values are described here to provide context for the parameters that were varied in the
-experiments we report.
+experiments we report. A number of these parameters actually were never experimented with, due to
+scope of the project.
+
+\subsection{Interpolation functions} \label{sec:interpolation}
+
+\begin{figure}[ht!]
+    \centering
+    \begin{tikzpicture}
+        \input{figs/interpolation-functions.tex}
+    \end{tikzpicture}
+    \caption{Comparison of the four selected interpolation functions}
+    \label{fig:interpolate-functions}
+\end{figure}
+
+A number of later experiments transition between differing levels of airway constriction with the
+use of \textit{keyframes}~--~a set of $(\text{time}, \text{constriction})$ pairs defining a handful
+of states that must be reached. To define the intermediate values between these states, we have four
+different interpolation functions:
+
+\begin{itemize}
+    \item \textit{Linear}: $f(x) = x$
+    \item \textit{Tanh}: $f(x) = \frac{1}{2} \frac{\tanh(6x - 3)}{\tanh(3)} + \frac{1}{2}$
+    \item \textit{Trigonometric}: $f(x) = \frac{1}{2} (1 - \cos(\pi x))$
+    \item \textit{Cubic}: $f(x) = 3x^2 - 2x^3$
+\end{itemize}
+
+\noindent
+A visual comparison of these functions is provided in \autoref{fig:interpolate-functions}.
+
+These functions were selected as options for their relative simplicity and variety of curvatures.
+While we could change these parameters instantaneously, there were a couple reasons to have smooth
+transitions~--~primarily to avoid instantaneous jumps in flow or volume, but also because processes
+that would affect the lungs in this way are very unlikely to be instantaneous themselves. If we
+\textit{do} need to model a near-instant change, keyframes already allow us to make the transition
+period arbitrarily short.
+
+Some amount of curvature is also desirable~--~although perhaps not necessary: without a continuous
+derivative, there are often unusually sharp changes in the rate of flow. This is perhaps intuitive,
+but still worthwhile to point out.
+
+Finally, it is worth noting that the correction factor of $\tanh(3)$ in the denominator of the
+\textit{Tanh} interpolation function is nearly equal to 1, but still necessary. The value of
+$\tanh(3)$ is only 0.995, but experiments without that correction factor showed clearly visible
+jumps in the rate of flow from that small change. While these changes were most likely harmless, we
+still elected to remove them.

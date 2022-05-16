@@ -1,0 +1,55 @@
+% @setfileprefix(data/constriction-stats/d2b951ba10c28e9cfafdb3a67574bd882a649ad3/)
+
+\begin{axis}[
+    align=center,
+    title={Comparison of constricted flow characteristics},
+    xlabel={Time (s)},
+    ylabel={Flow in (L/s)},
+    xmin=20, xmax=28,
+    ymin=-.5, ymax=.5,
+    xtick={20,22,24,26,28},
+    ytick={-.5,-.25,0,.25,.5},
+    legend pos=south east,
+    legend style={nodes={scale=0.8, transform shape}},
+    width=.8\textwidth,
+    height=.6\textwidth,
+    every axis plot post/.append style={mark=none,thick}, % adapted from https://tex.stackexchange.com/a/253123
+]
+
+% 90%
+\addplot[color=softred] coordinates {
+    % @generated(fields='1,5', range=2002.., stride=5, 0.01x28s-10d@90%.csv)
+};
+\addlegendentry{90\%}
+% 75%
+\addplot[color=softred] coordinates {
+    % @generated(fields='1,5', range=2002.., stride=5, 0.01x28s-10d@75%.csv)
+};
+\addlegendentry{75\%}
+% 60%
+\addplot[color=softorange] coordinates {
+    % @generated(fields='1,5', range=2002.., stride=5, 0.01x28s-10d@60%.csv)
+};
+\addlegendentry{60\%}
+% 45%
+\addplot[color=softorange] coordinates {
+    % @generated(fields='1,5', range=2002.., stride=5, 0.01x28s-10d@45%.csv)
+};
+\addlegendentry{45\%}
+% 30%
+\addplot[color=softyellow] coordinates {
+    % @generated(fields='1,5', range=2002.., stride=5, 0.01x28s-10d@30%.csv)
+};
+\addlegendentry{30\%}
+% 15%
+\addplot[color=softyellow] coordinates {
+    % @generated(fields='1,5', range=2002.., stride=5, 0.01x28s-10d@15%.csv)
+};
+\addlegendentry{15\%}
+% 0%
+\addplot[color=softgreen] coordinates {
+    % @generated(fields='1,5', range=2002.., stride=5, 0.01x28s-10d@0%.csv)
+};
+\addlegendentry{None}
+
+\end{axis}

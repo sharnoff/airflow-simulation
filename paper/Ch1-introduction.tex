@@ -3,20 +3,23 @@
 % vim: set ft=tex:
 \section{Introduction}
 
-\subsection{Motivation}
+\subsection{Motivation} \label{sec:motivation}
 
 Respiratory diseases account for more than 10\% of \textit{all} disability-adjusted life-years lost
-due to any medical condition, second only to cardiovascular diseases.\cite{GlobalImpact} Because
-of this, any betterment of our understanding of the lungs and how they change from damage has
-immediate benefits towards understanding one of the most significant categories of disease.
+due to any medical condition, second only to cardiovascular diseases (see: \cite{GlobalImpact}).
+Because of this, any betterment of our understanding of the lungs and how they change from damage
+can provide immediate benefits towards understanding one of the most significant categories of
+disease.
 
 In spite of this, there are relatively few existing methods for experimentation. Clinical
-observations on live patients are necessarily limited, and common techniques~-- spirometry,
-inert-gas washout, and fMRI imaging~-- all have severe limitations that render them infeasible or
+observations on live patients are necessarily limited, and common techniques~--~spirometry,
+inert-gas washout, and MRI imaging~--~all have severe limitations that render them infeasible or
 impossible to use for obtaining detailed data on the lungs at scale. And on top of that, the
 difficulty of drawing inference from these methods is enhanced by the fact that they are purely
 observational; in this paper, we are concerned with the effects of certain changes in lung
-morphology (such as: tightening of the airways, stiffness in the expansion and contraction, etc.).
+morphology (such as: tightening of the airways, stiffness in the expansion and contraction,
+etc)~--~effects common to some of the most prevalent lung diseases, like asthma, cystic fibrosis,
+and chronic obstructive pulmonary disease.
 
 Of course, it would be unethical to \textit{induce} these changes in patients. However,
 sufficiently-accurate computational models present a natural solution. By designing models that can
@@ -24,15 +27,13 @@ easily be arbitrarily deformed or otherwise altered, we create the opportunity t
 investigate how targeted changes in lung morphology affect both lung functioning as a whole and the
 stresses placed on individual regions.
 
-\todo{I'd like to add something along the lines of: ``historically, computational models have been
-too expensive for experimentation without specialized equipment, but recent developments (i.e. Foy)
-have show other methods for simulating airflow are both efficient and accurate.''}
+Historically, computational models have been severely limited by available resources, but recent
+advancements in modelling the lungs have shown new methods to be both efficient and accurate,
+opening the door to a wide range of possibilities.
 
-\subsection{Contributions to the field}
+\subsection{Contributions to the field} \label{sec:contributions}
 
-This paper introduces a new tool for simulating and observing changes to the lungs, and their
-precise effects.
-
-\todo{Something about: ``this is useful to people looking to find new results about \textit{how} the
-lungs get impacted by various diseases.'' Would like to also say: ``we have investigated the effects
-of clinically-observed symptoms from a couple diseases, to showcase the utility of this tool''}
+This paper introduces a new tool for generating computational lung models, simulating them, and
+changing their morphology mid-simulation. To demonstrate the utility of this tool, we investigate
+the response of the lungs to various morphological changes, providing this data over a smooth range
+of possible changes~--~allowing trends to be plainly visible and inference to be easily made.

@@ -3,33 +3,52 @@
 % vim: set ft=tex:
 \section{Results} \label{sec:results}
 
+Before properly describing the results, it is worth providing some context for the typical
+parameters used for running the various simulations. Unless otherwise indicated, we use the
+following values: approximate FRC of 3 L, trachea length of 10 cm, trachea radius of 0.95 cm,
+pleural pressure range from $-875$ to $-750$ Pa with a period of 4 seconds, bronchiole length
+decrease of 27\% per generation, bronchiole radius decrease by 23\% per generation, and a depth of
+10 generations (i.e. 512 acinar regions). The depth was limited by the computational resources
+required to simulate hundreds of different models.
+
+Values for the trachea are taken as a middle-ground from \autoref{tab:lung-sizes} and bronchiole
+size decrease is derived so that the same fractional decrease per generation results in the
+appropriate sizes at transitional bronchioles (also from \autoref{tab:lung-sizes}). The pleural
+pressure is adapted from \cite{BenTal2006}, using an idealized model of elasticity for an
+approximate tidal volume of 0.5 litres.
+
+We typically use a timestep of 0.01s for the simulation, with smaller timesteps sometimes used to
+get higher-fidelity output (e.g., for \autoref{fig:constricted-flow-stats}).
+
 \subsection{Observed numerical stability}
 
 \begin{figure}[ht!]
     \centering
     \begin{tikzpicture}[scale=0.8]
-        \input{figs/initial-volumes-level-out.pgfplot}
-        \input{figs/initial-volumes-too-constricted.pgfplot}
+        \input{figs/initial-volumes-level-out.generated.tex}
+        \input{figs/initial-volumes-too-constricted.generated.tex}
     \end{tikzpicture}
     \caption{
         Simulated volume at the start of a breathing cycle, with varied initial volumes. Both
-        experiments with a symmetric model with a depth of 6 (i.e., 63 total branches). Graphs
-        display the distinction between unrestricted (left) vs 80\% constricted (right).
-        \textbf{Note:} displayed timespan differs between the left and right graphs.
+        experiments with a symmetric model with a depth of 10 generations. Graphs display the
+        distinction between unrestricted (left) vs 40\% constricted (right). \textbf{Note:}
+        displayed timespan differs between the left and right graphs.
     }
     \label{fig:different-initial-volumes}
 \end{figure}
 
 To be confident in the results of other experiments, it is first crucial to determine that the
 simulation remains stable after running for extended periods of time. To do this, we simulated a
-simpler model (fully symmetric, no constriction, depth of 6) for 1000 seconds~--~which required
+simpler model (fully symmetric, no constriction, depth of 10) for 1000 seconds~--~which required
 100,000 simulation ticks.
 
 It is at this point that we'd ideally reference some figure to show that the system is stable in
-this configuration, but the series of volumes at each timestamp~--~starting at 0, 100, and 1000
-seconds~--~were all the same, up to nine significant figures. In other words, total volume of air in
-the lungs over the course of each ``breath'' did not change over the course of an atypically lengthy
-experiment.
+this configuration, but the series of volumes at each timestamp~--~starting at 4, 100, and 1000
+seconds~--~were all the same, up to nine significant figures. By the end of the first breath cycle,
+the volume had corrected from the starting volume of 3 to 3.019 litres. Total volume of air in the
+lungs over the course of each ``breath'' did not change over the course of an atypically lengthy
+experiment, indicating a high degree of numerical stability (as expected, due to our use of an
+implicit Euler method).
 
 \breakpars
 
@@ -46,7 +65,7 @@ correction from being made more quickly.
 \begin{figure}[ht!]
     \centering
     \begin{tikzpicture}
-        \input{figs/constricted-flow-characteristics.pgfplot}
+        \input{figs/constricted-flow-characteristics.generated.tex}
     \end{tikzpicture}
     \caption{
         Stable flow during two breathing cycles with varied levels of whole-lung airway
@@ -61,30 +80,28 @@ The first set of experiments investigated the behavior of sustained, normal brea
 to severe constriction. Here, we used whole-lung constriction~--~limiting the radius of all airways
 by a given fraction. \autoref{fig:constricted-flow-characteristics} displays the recorded airflow at
 the larynx for normal breathing under a few different levels of constriction. The function
-determining pleural pressure was kept constant. Consistent with prior studies, the effects of
-constriction on airflow only become noticeable after significant constriction~--~in this case,
-60-70\%.
+determining pleural pressure was kept constant.
 
-\todo{ need to directly name the prior studies, whatever I can find }
+As constriction increases, there are three visible effects: the maximum flow decreases, the time of
+the peak in flow shifts later, and the shape of the flow curve also changes~--~becoming flatter at
+its peaks and troughs and steeper around the transitions between positive and negative flow.
 
-As constriction increases, there are three visible effects: the maximum flow starts to decrease, the
-time at which the maximum flow occurs starts to shift later, and the shape of the flow curve also
-changes~--~becoming flatter at its peaks and steeper around the transitions between positive and
-negative flow.
+\autoref{fig:constricted-flow-stats} quantifies these effects, with additional data provided for
+dilation of the airways. Our analysis here includes the range of airway widths covered by dilation
+because it provides information that may correspond to humans with naturally wider airways.
 
-\autoref{fig:constricted-flow-stats} quantifies these effects. Maximum flow remains relatively
-constant until around 60-70\% constriction, after which it steadily curves towards zero. However,
-before even the \textit{amount} of flow changes, effects are readily visible in other
-characteristics of the curve~--~particularly the maximum acceleration: At only 50\% constriction,
-the maximum acceleration has already increased by 27\% (0.62 to 0.79 L/s\textsuperscript{2}) whereas
-the maximum flow has only decreased by 0.2\% (0.3875 to 0.3868 L/s).
+Maximum flow slowly decreases from 50\% dilation to none, after which it curves more steeply towards
+zero. However, before the \textit{amount} of flow changes significantly, the effects of constriction
+are readily visible in other characteristics of the curve~--~particularly the maximum acceleration:
+it increases from 50\% dilation to around 10\% constriction, at which point its magnitude starts to
+become limited by the height of the flow curve.
 
 \begin{figure}[ht!]
     \centering
     \begin{subfigure}[t]{.45\textwidth}
         \centering
         \begin{tikzpicture}[scale=.75]
-            \input{figs/constricted-flow-stats-maxflow.pgfplot}
+            \input{figs/constricted-flow-stats-maxflow.generated.tex}
         \end{tikzpicture}
         \subcaption{
             Maximum flow and time it occurs relative to no constriction
@@ -94,111 +111,218 @@ the maximum flow has only decreased by 0.2\% (0.3875 to 0.3868 L/s).
     \begin{subfigure}[t]{.45\textwidth}
         \centering
         \begin{tikzpicture}[scale=.75]
-            \input{figs/constricted-flow-stats-acceleration.pgfplot}
+            \input{figs/constricted-flow-stats-acceleration.generated.tex}
         \end{tikzpicture}
         \subcaption{
             Maximum flow and maximum acceleration in flow
         }
     \end{subfigure}%
     \caption{
-        Quantified changes in airflow as constriction increases, up to 95\%. Peak airflow is
-        displayed as a baseline for both the time maximum flow occurs (left) and the maximum
-        acceleration in flow between simulation ticks (right).
+        Changes in airflow characteristics as constriction increases from dilation by 50\% to 90\%
+        constriction. Peak airflow is displayed as a baseline for both the time maximum flow occurs
+        (left) and the maximum acceleration in flow between simulation ticks (right).
     }
     \label{fig:constricted-flow-stats}
 \end{figure}
 
-Some uneveness is present in the graph of maximum aceleration; this is likely in large part due to
-the method of measurement. Because acceleration was calculated only with the change in flow from one
-simulation tick to another, differences in the timing of this maximal acceleration have likely
-presented here as local differences in spite of the global trend.
+Some uneveness is present in the graph of maximum aceleration. Initially, this was thought to be due
+to the particular way that it is being measured, namely: finding the greatest increase in flow from
+one simulation tick to the next. Slight differences in the timing could have meant that the maximal
+acceleration had some local variability despite the global trend.
 
-\subsection{Comparison of interpolation functions}
+To test this, we ran the simulation with a timestep of 1/400s instead of the usual 1/100s, the
+results of which are in \autoref{fig:constricted-flow-stats}. The peak is much greater (up from
+approx. 2 L/s\textsuperscript{2} to approx. 3.5), indicating that there was a degree of the most
+extreme points not being captured. This may still be the case, even at 1/400s~--~as improbable as it
+seems.
+
+\subsection{Recovery}
 
 \begin{figure}[ht!]
     \centering
-    \begin{tikzpicture}
-        \input{figs/interpolation-functions.pgfplot}
+    \begin{tikzpicture}[scale=0.6]
+        \input{figs/recovery-healthy.generated.tex}
+        \input{figs/recovery.generated.tex}
+        \input{figs/recovery-constricted.generated.tex}
     \end{tikzpicture}
-    \caption{Comparison of the four selected interpolation functions}
-    \label{fig:interpolate-functions}
+    \caption{
+        Side-by-side comparison between unconstricted flow (left), gradual constriction and recovery
+        (middle), and constricted flow (right). The target constriction level was 50\%, with
+        \code{tanh} used for interpolation. For the recovery, transitions between constriction
+        levels were 4 seconds each, onset was at 8 seconds, and recovery started at 16 seconds.
+    }
+    \label{fig:demo-recovery}
 \end{figure}
 
-Later experiments explore the effects of rapid changes in airway constriction. To move between these
-``constricted'' and ``unconstricted'' states, we have four different interpolation functions:
+Using the scheduled constriction feature of the software made for this project, we ran a number of
+trials that started with a ``healthy'' lung, then slowly constricted the airways to a target
+constriction (smoothing with interpolation functions from \autoref{sec:interpolation}), stayed
+constricted for a full breath, and then gradually reduced constriction back to the healthy state.
 
-\begin{itemize}
-    \item \textit{Linear}: $f(x) = x$
-    \item \textit{Tanh}: $f(x) = \frac{1}{2} \frac{\tanh(6x - 3)}{\tanh(3)} + \frac{1}{2}$
-    \item \textit{Trigonometric}: $f(x) = \frac{1}{2} (1 - \cos(\pi x))$
-    \item \textit{Cubic}: $f(x) = 3x^2 - 2x^3$
-\end{itemize}
-
-\noindent
-A visual comparison of these functions is provided in \autoref{fig:interpolate-functions}.
-
-These functions were selected for their relative simplicity and variety of curvature.
-
-\todo{
-    Explaining exactly why the curvature is necessary is escaping me right now. It's basically that
-    the flow behaves extra weirdly without curvy interpolation, but that's not very scientific.
-
-    There's an alternate angle, which is that curvy interpolation intentionally allows the
-    significant changes at high constriction to happen more slowly (e.g. going 10\% to 15\% is much
-    slower than 15\% to 20\%). This is ``good'' because flow characteristics change rapidly as you
-    change constriction \textit{from} high constrictions, so moving slowly ensures that the flow is
-    less erratic.
-
-    On the other hand, maybe this is biasing the results and \textit{actually} the erratic flow is
-    more realistic. Would be good to discuss.
-}
-
-\todo{
-    The other piece of writing in this section is going to be a comparison of the flow
-    characteristics when when switching on various interpolation methods.
-
-    We eventually choose \textit{Tanh}, basically because it looks the best (subject to change!).
-    See above notes.
-}
+An example of this is given in \autoref{fig:demo-recovery}, with baseline comparisons for the flow
+and volume of the lung under no constriction or the target of constriction by 50\%. All three models
+were run for 4 seconds at the start to even out any disturbances from the initial state. At 8
+seconds, the recovery trial starts to constrict, but it only starts to become noticeable at around
+11 seconds (discounting the raised trough at 9 seconds)~--~before finally reaching the target
+constriction at 12 seconds. From there, the flow appears nearly identical to the constricted
+baseline, with a slightly higher than baseline flow briefly at the 12 second mark. In a similar
+fashion, recovery starts after a full breath cycle, at 16 seconds. The effects of reducing
+constriction are almost immediately visible, with an unusually sharp increase in flow at 18 seconds.
+At 20 seconds, the constriction has been fully removed and flow appears normal.
 
 \breakpars
 
-Finally, it is worth noting that the correction factor of $\tanh(3)$ in the denominator of the
-\textit{Tanh} interpolation function is nearly equal to 1, but still necessary. The value of
-$\tanh(3)$ is only 0.995, but experiments without that correction factor showed clearly visible
-instantaneous changes in flow from that small change. While these changes were most likely harmless,
-we still elected to remove them.
+There is a lot of information in the above paragraph~--~to summarize briefly: the most visible
+effect in this trial of changing constriction levels is that volume and flow tends to quickly match
+the characteristics that we would expect from the constriction level it reaches. Some atypical
+behavior \textit{is} observed around these transitions, but it is brief (e.g., the flow at 18s).
 
-\section{Recovery}
+To demonstrate the causes behind this atypicality, \autoref{fig:demo-recovery-matched} overlays the
+recovery and baseline trials with a sort of ``matched baseline``~--~composite curves made by taking
+from the baseline curve matching the constriction level each datapoint. For example: at 10 seconds,
+the model is constricted by 25\%, so the ``matched baseline'' at 10 seconds uses the flow and volume
+from a steady run at 25\% constriction at 10 seconds.
 
-\todo{ fill this in }
+\begin{figure}[tp]
+    \centering
+    \begin{tikzpicture}
+        \input{figs/recovery-matched.generated.tex}
+    \end{tikzpicture}
+    \caption{
+        The same recovery trials from \autoref{fig:demo-recovery}, compared with the values of
+        volume and flow corresponding to a stable breath pattern at the current constriction level,
+        at each point in time (``Matched''). Much of the jaggedness is due to the imprecision in
+        linearly interpolating between the two closest constriction trials (to the nearest integer
+        percentage).
+    }
+    \label{fig:demo-recovery-matched}
+\end{figure}
 
-\section{Asymmetric constriction}
+Looking at \autoref{fig:demo-recovery-matched}, it's tempting to think that the recovery trial
+directly follows the matched baseline. However, while changing the constriction level (i.e. airway
+raidii), the only variable that remains different between trials is the volume; everything else is
+derived from the airway morphology and pleural pressure, the latter of which we have kept
+consistent. The simulation has no ``knowledge'' of the appropriate volume to correct to.
 
-\todo{ fill this in }
+Instead, the matching \textit{must} be a direct result of the way that the flow due to the current
+volume and pleural pressure is limited (or allowed) by the airway widths. With greater constriction,
+the flow becomes more limited by resistance from smaller airways, which is why we see a reduced
+tidal volume, even though the compliance and pleural pressure haven't changed.
 
-% \begin{itemize}
-%     \item Stable flow characteristics of lungs with varying degradation
-%         \begin{itemize}
-%             \item Basically just want to point out the ways that the curve starts to become
-%                 lopsided and out of phase from the pleural pressure, with particular emphasis on
-%                 the way that the effect starts rapidly heightening as the constriction
-%                 approaches 10\% (about~--~I haven't tested beyond that, which I should).
-%         \end{itemize}
-%     \item Onset and recovery from airflow constriction. Key things are:
-%         \begin{itemize}
-%             \item Just showing off the simple graphs, to get a sense of what's going on
-%             \item Slow recovery reduces strain~--~we can get abnormally high airflow if pleural
-%                 pressure lines up with suddenly-reduced constriction 
-%             \item Relating to above: I'd like to have a version of the crazy graph~--~the one
-%                 where it's all just ``degrade and recover'', with each startpoint being offset
-%                 by 0.5s from the previous one. It would be really good to align that with some
-%                 kind of chart showing the minimum and maximum flow velocity reached (on top of
-%                 the normal min/max), to show the kind of chance of risk we run~--~and how much
-%                 that reduces as the recovery becomes slower.
-%             \item Flow characteristics align with those from the current level of constriction
-%                 (i.e. on the way to 10\%, the area around 20\% constriction tends to mimic the
-%                 flow characteristics from 20\% at that point)
-%             \item The above points are probably three distinct sub-sections.
-%         \end{itemize}
-% \end{itemize}
+When recovery is introduced, this effect tends to \textit{imitate} the matched baseline, but only
+where the volume is already similar~--~and changes in volume are limited by airway resistance. This
+is most visible in the way that the recovery trial stays distinctly separate from the constricted
+baseline for most of the period in which it is at that constriction level: the initial raised volume
+takes time to correct for.
+
+The effects at 18-19 seconds are similar in nature: the recovery trial initially diverges from the
+matched baseline because its volume at, e.g., 17.5 seconds is less than would be expected for the
+level of constriction at 18 seconds. Because of this difference, the recovery trial maintains inward
+flow for longer as the pleural pressure starts to increase. Eventually at 18.5s, the slowed upward
+trend in volume meets the matched baseline and snaps to the same flow~--~because the volume and
+pleural pressure are the same.
+
+\subsubsection{Generalizing recovery}
+
+All of the above serves to illustrate some of the ways in which flow can be disrupted by actively
+changing the level of whole-lung constriction. There are a couple of general findings to note.
+
+Firstly: airway size matters, both ``healthy'' and constricted. In our early experimentation, we
+found that unusually wide airways~--~precisely because they have so little resistance~--~can easily
+result in large spikes in airflow as out-of-phase constricted volume is adjusted with loosening
+constriction and large negative pleural pressure.
+
+Secondly, the precise nature of the abnormal flow that we see when recovering from constricted
+airways varies greatly depending on the timing (relative to each breath) and speed of the recovery.
+This can similarly be selected to produce similar effects as above, as demonstrated in
+\autoref{fig:sharp-recovery}. Abnormally high flows can be created from normal pressures simply by
+forcing the volume to remain mostly constant as the pleural pressure changes beneath it. This is
+essentially akin to breathing in, closing the epiglottis, fully relaxing the diaphragm, and then
+opening the epiglottis~--~releasing the air quicker than would normally happen as the diaphragm
+slowly relaxes.\footnotemark
+
+\footnotetext{
+    In practice, this demonstration tends not to be very extreme (due to the diaphragm moving slowly
+    even when relaxed). A more sudden example is the reverse: contracting the diaphragm without
+    breathing in, then allowing air to enter the lungs.
+}
+
+\begin{figure}[hb]
+    \centering
+    \begin{tikzpicture}
+        \input{figs/sharp-recovery.generated.tex}
+    \end{tikzpicture}
+    \caption{
+        Extreme example of timed severe constriction (by 80\%) causing large spikes in flow.
+        Constriction begins at 6.1s, takes full effect within 0.1s, and starts returning to normal
+        at 7.7s, also taking 0.1s.
+    }
+    \label{fig:sharp-recovery}
+\end{figure}
+
+Of course, the type of breathing shown in \autoref{fig:sharp-recovery} is highly unlikely to happen
+in practice~--~primarily because real humans will tend to react to their internal lung state by
+indirectly changing the pleural pressure in a way that our model cannot. This is discussed in more
+detail in \autoref{sec:limitations-and-further-work}.
+
+\subsection{Asymmetric constriction}
+
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+        \input{figs/asymmetric.generated.tex}
+    \end{tikzpicture}
+    \caption{
+        Asymmetric constriction and recovery, with onset of left lung constriction at 8s, reaching
+        the final 50\% constriction by 12s via \code{tanh} interpolation, and recovering from
+        16-20s.
+    }
+    \label{fig:asymmetric-recovery}
+\end{figure}
+
+The final experiment performed was around the use of asymmetric constriction. We ran the same trial
+as from \autoref{fig:demo-recovery-matched}, but limited the constriction to just the left side of
+the lung. The separate volume and flow between the two equal halves are paired in
+\autoref{fig:asymmetric-recovery}.
+
+Interestingly, the right lung appears completely unaffected by the reduction in flow from the left
+lung. While the left lung appears to have identical flow characteristics as the trial from
+\autoref{fig:demo-recovery-matched}, the right lung equally apears to have the characteristics of a
+healthy lung. This seems to imply that the resistance terms primarily limiting faster flow in the
+right lung are \textit{not} coming from the trachea; oherwise the reduced flow from the left lung
+would have eased that resistance and allowed faster flow from the right lung.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[t]{0.5\textwidth}
+        \centering
+        \begin{tikzpicture}[scale=.8]
+            \input{figs/asymmetric-diff-max.autoplot.tex}
+        \end{tikzpicture}
+        \subcaption{Difference in maximum flow}
+    \end{subfigure}%
+    \begin{subfigure}[t]{0.5\textwidth}
+        \centering
+        \begin{tikzpicture}[scale=.8]
+            \input{figs/asymmetric-max-diff.autoplot.tex}
+        \end{tikzpicture}
+        \subcaption{Maximum difference in flow at the same time}
+    \end{subfigure}
+    \caption{
+        As constriction in the left lung increases, comparisons of the flow in the right lung with a
+        right lung from a healthy left lung. \textbf{N.B.}: Units are measured in millilitres; the
+        differences are very small.
+    }
+    \label{fig:asymmetric-flow-diff}
+\end{figure}
+
+There is, however, an imperceptibly small difference between the flow from the right lung in this
+trial, and one where the left lung remained healthy the entire time: At 50\% constriction in the
+left lung, the maximum flow through the right lung is 0.3 mL/s greater than with no
+constriction~--~and at one point in time, the difference between the two flows is 8.1 mL/s.
+
+Clearly these are still small, but it is worth quantifying these differences and observing how they
+change with constriction; so \autoref{fig:asymmetric-flow-diff} displays both of these metrics. With
+a quick look at the two charts, it is clear that even with the most severe constriction on the left
+lung, the flow through the right lung barely changes, supporting the initial observations from
+\autoref{fig:asymmetric-recovery}.

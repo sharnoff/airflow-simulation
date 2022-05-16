@@ -33,7 +33,8 @@ const SIZE_PADDING: Float = 0.3;
 pub struct FromJsonGenerator {
     by_parent_id: Vec<Branch>,
     upper_right: Point,
-    start_parent_info: ParentInfo,
+    nominal_parent_info: ParentInfo,
+    abnormal_parent_info: ParentInfo,
     lung_frc: Float,
     env_config: EnvConfig,
     schedule: Schedule,
@@ -78,8 +79,11 @@ impl FromJsonGenerator {
     }
 
     /// Returns the starting `ParentInfo` that should be used with this generator
-    pub fn start_parent_info(&self) -> ParentInfo {
-        self.start_parent_info
+    pub fn start_parent_info(&self, degraded: bool) -> ParentInfo {
+        match degraded {
+            false => self.nominal_parent_info,
+            true => self.abnormal_parent_info,
+        }
     }
 
     /// Returns a sensible bounding upper-right corner for displaying the result of generating this
@@ -114,6 +118,7 @@ impl FromJsonGenerator {
             .unwrap_or(DEFAULT_LUNG_FRC);
         let trachea_length = parsed.config.trachea_length.unwrap_or(TRACHEA_LENGTH);
         let trachea_radius = parsed.config.trachea_radius.unwrap_or(TRACHEA_RADIUS);
+        let trachea_radius_abnormal = parsed.config.trachea_radius_abnormal.unwrap_or(trachea_radius);
 
         // Check the maximum depth:
         if parsed.config.common.max_depth.get() < REQUIRED_MIN_DEPTH {
@@ -193,7 +198,7 @@ impl FromJsonGenerator {
         let initial_branch = BranchSize {
             length: trachea_length,
             nominal_radius: trachea_radius,
-            abnormal_radius: trachea_radius,
+            abnormal_radius: trachea_radius_abnormal,
         };
 
         let root_start_pos = Point { x: 0.0, y: 0.0 };
@@ -341,7 +346,11 @@ impl FromJsonGenerator {
         Ok(FromJsonGenerator {
             by_parent_id,
             upper_right,
-            start_parent_info,
+            nominal_parent_info: start_parent_info,
+            abnormal_parent_info: ParentInfo {
+                tube_radius: initial_branch.abnormal_radius,
+                ..start_parent_info
+            },
             lung_frc,
             env_config: parsed.env,
             schedule: parsed.schedule,

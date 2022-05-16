@@ -1,0 +1,30 @@
+% A path that follows the edges of the current page
+%    https://tex.stackexchange.com/a/12033
+\tikzstyle{reverseclip}=[insert path={(current page.north east) --
+  (current page.south east) --
+  (current page.south west) --
+  (current page.north west) --
+  (current page.north east)}
+]
+
+\begin{scope}
+    \begin{pgfinterruptboundingbox}
+        \path[clip] (0,4.5) -- (3.5,1) -- (4.5,2) -- (1,5.5) [reverseclip];
+    \end{pgfinterruptboundingbox}
+    \draw (4,1.5) circle (1.5);
+\end{scope}
+
+\begin{scope}
+    \begin{pgfinterruptboundingbox}
+        \path[clip] (4,1.5) circle (1.5) [reverseclip];
+    \end{pgfinterruptboundingbox}
+    \draw (0,4.5) -- (3.5,1) -- (4.5,2) -- (1,5.5);
+\end{scope}
+
+\filldraw (4,1.5) circle (.05);
+\node at (4,1.5) [scale=.75,yshift=-.25cm] {$V_i,\,C_i$};
+\draw[->,thick,shorten <=2mm,shorten >=4mm] (.5,5) -- (3,2.5) node[pos=.5,xshift=.2cm,yshift=.2cm,scale=.75] {$Q_i$};
+\filldraw (3.05,2.45) circle (.05);
+\node at (3,2.5) [scale=.75,yshift=-.25cm,xshift=.25cm] {$P_i$};
+\draw[thick,decorate,decoration={brace,raise=.5mm,pre=moveto,pre length=.2mm,post=moveto,post length=.5mm}]
+    (2.55,1.95) -- (0,4.5) node[pos=.5,xshift=-.25cm,yshift=-.25cm] {$L_i$};

@@ -6,41 +6,73 @@
 \subsection{Physiology of the lungs}
 
 At a high level, the physiology of the lungs can be divided into the few most significant
-structures. This section does not discuss pulmonary blood circulation, or the mechanics of gas
-exchange~--~this paper is primarily concerned with the flow of air in and out of the lungs.
+structures. This paper is primarily concerned with modelling airflow, so the intricacies of
+pulmonary blood circulation or gas exchange are left for the reader to discover elsewhere.
+
+\breakpars
 
 The flow of air into the lungs begins with the diaphragm, a muscle below the lungs that contracts to
-increase the volume of the \textit{thoracic cavity} (where lungs are housed). This increase in
-volume causes the negative pressure that drives inspiration. Correspondingly, typical expiration is
-driven by relaxation of the diaphragm and the associated increase in pressure in the thoracic
-cavity.
+increase the volume of the \textit{thoracic cavity} (where lungs are housed). The inside of the
+thoracic cavity and both lungs are lined with a thin membrane~--~creating a cavity around the lungs
+when these two layers of membranes are separated. This cavity is the \textit{pleural cavity}, and
+contains a small amount of \textit{pleural fluid}. The pressure of the pleural
+fluid~--~\textit{pleural pressure}~--~directly drives the expansion and contraction of the lungs,
+and its values are typically reported as relative to atmospheric pressure.
+
+To keep the lungs inflated, pleural pressure is typically slightly less than atmospheric pressure;
+the lungs can deflate if the pleural pressure is equal or greater to the air pressure inside the
+lungs. As the diaphgram contracts to increase the volume of the thoracic cavity, the pressure in the
+pleural cavity decreases, causing a greater negative pressure gradient, driving inspiration.
+Correspondingly, typical expiration is driven by relaxation of the diaphragm and the associated
+increase in pleural pressure from a smaller thoracic cavity.
 
 Air flows into the body through the nose and mouth, meeting the trachea at the larynx, in the neck.
 The trachea splits into the left and right bronchi~--~connecting to the left and right lungs
 respectively. The bronchi split into a binary tree of progressively smaller bronchial tubes (the
 \textit{tracheobronchial tree}), with the \textit{generation} of a bronchial tube referring to the
-number of branches between it and the larynx. The smallest bronchial tubes terminate in a small
-number of acini, small clusters of alveoli. Alveoli are the small, spherical air sacs that act as
-the sites of gas exchange with the blood. A core technique used in this paper is the approximation
-of one or many acini as spherical air sacs themselves, further described in
-\autoref{sec:approximating-lungs}. Typical dimensions for all of the structures above are given in
+number of branches between it and the larynx. As the bronchial tubes become smaller, they switch
+from conducting bronchioles (those that only transport air) to respiratory bronchioles, which attach
+to and eventually terminate in a small small number of acini~--~small clusters of alveoli. The
+first respiratory bronchioles are referred to as \textit{transitional bronchioles}, and are
+generally found around generation 14.\cite{HaefeliBleuerWeibel1988}
+
+Alveoli are the small, spherical air sacs that act as the sites of gas exchange with the blood. A
+core technique used in this paper is the approximation of one or many acini as spherical air sacs
+themselves, further described in \autoref{sec:approximating-lungs}. Typical dimensions for all of
+the structures above are given in
 \autoref{tab:lung-sizes}.
 
-% FIXME: ^ need sources here
-% https://en.wikipedia.org/wiki/Lung#/media/File:Secondary-pulmonary-lobule-illustration.jpg
-%  ^ good diagram
-% https://pubmed.ncbi.nlm.nih.gov/472520/
-%  ^ "A statistical description of the human tracheobronchial tree geometry"
+As individual alveoli fill with air, they expand in size. Alveoli are elastic, meaning expanding in
+volume requires a greater pressure gradient between the air inside and the material outside. One way
+of referring to this elasticity is by the \textit{compliance} of an alveolus~--~i.e. how ``willing''
+it is to expand as the pressure gradient increases. There is also a parallel notion of ``total lung
+compliance'', which describes the sum of the compliance of all alveoli in the lung, giving a measure
+of how the entire lung \textbf{could} expand and contract in response to changing pleural
+pressures.\footnotemark
+
+\footnotetext{
+    Technically speaking, the total lung compliance is related to what the volume of the lung would
+    be if it were filled at atmospheric pressure, given a certain pleural pressure. In practice,
+    there are other factors that prevent the system from equalizing in this way (e.g., airway
+    resistance), and pleural pressure is not typically constant during normal breathing.
+}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=.8\textwidth,keepaspectratio]{figs/HumanRespiratorySystem.png}
+    \caption{
+        Diagram of the human respiratory system, at three levels of detail: high-level view of the
+        whole system (A), zoomed into a pair of acini (B), and focusing on the site of gas exchange
+        (C). Image sourced from Wikimedia Commons \\
+        (\url{https://commons.wikimedia.org/wiki/File:Human\_respiratory\_system-NIH.PNG})
+    }
+\end{figure}
 
 Beyond the structure of the lungs, there are also a number of measures of volume. \textit{Tidal
 volume} (TV) refers to the volume of air moved in or out of the lungs during a typical breath, and
 \textit{functional residual capacity} (FRC) refers to the total volume of air remaining in the lungs
 after a normal expiration.\footnotemark\ Typical values for TV and FRC are also given in
 \autoref{tab:lung-sizes}.
-
-% FIXME: ^ source = https://www.ncbi.nlm.nih.gov/books/NBK545177/
-%   ^ useful: https://pubmed.ncbi.nlm.nih.gov/12773331/
-%   ^         https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5980468/
 
 \footnotetext{
     \textbf{N.B.:} TV and FRC both describe typical breaths; there are analogous terms for maximum
@@ -49,31 +81,54 @@ after a normal expiration.\footnotemark\ Typical values for TV and FRC are also 
     they are not necessary for understanding the experiments in this paper.
 }
 
-\begin{table}[h]
-\centering
+\begin{table}[ht]
+    \caption{Average sizes and quantities of lung structures and volumes}
+    \label{tab:lung-sizes}
+    \centering
+    \renewcommand{\arraystretch}{1.3}
     \begin{tabular}{ |c|c|c| }
     \hline
         Metric & Mean value (adult female) & Mean value (adult male) \\
         \hline \hline
-        Trachea length & todo & todo \\ % FIXME: fill in the chart lol
-        Trachea radius & todo & todo \\
-        Bronchus length & todo & todo \\
-        Bronchus radius & todo & todo \\
-        Acinus radius & todo & todo \\
-        Alveolus radius & todo & todo \\
+        Trachea length & 9.8 cm \cite{KamelEtAl2009} & 10.5 cm \cite{KamelEtAl2009} \\
+        Trachea radius$^a$ & 0.91 cm$^b$ \cite{Hoffstein1986} & 0.98 cm$^b$ \cite{Hoffstein1986} \\
         \hline
-        TV & todo & todo \\
-        FRC & todo & todo \\
+        Trans. bronchiole length & \multicolumn{2}{|c|}{ 1.33 mm \cite{HaefeliBleuerWeibel1988} } \\
+        Trans. bronchiole radius & \multicolumn{2}{|c|}{ 0.25 mm \cite{HaefeliBleuerWeibel1988} } \\
+        Acinus volume     & \multicolumn{2}{|c|}{ approx. 187 mm$^3$ $^c$ \cite{HaefeliBleuerWeibel1988} } \\
+        Number of acini   & \multicolumn{2}{|c|}{ 30,000 \cite{WeibelEtAl2005} } \\
+        Alveolus volume   & \multicolumn{2}{|c|}{ 0.0042 mm$^3$ \cite{OchsEtAl2004} } \\
+        Number of alveoli & \multicolumn{2}{|c|}{ approx. 480,000,000$^d$ \cite{OchsEtAl2004} } \\
         \hline
-\end{tabular}
-\caption{
-    Typical sizes of various lung structures and volumes. Larger structures and effects tend to be
-    more different in proportion between average males and females.
-}
-\label{tab:lung-sizes}
+        TV & 400 mL \cite{StatpearlsTidalVolume} & 500 mL \cite{StatpearlsTidalVolume} \\
+        FRC & 2.64 L$^e$ & 3.50 L$^e$ \\
+        % original FRC data:
+        %          20-29yr , 30-39yr , 40-49yr , 50-59yr , 60-69yr , 70-80yr | unweighted avg
+        %  male:   9x 3.36 , 7x 3.45 , 7x 3.50 , 8x 3.00 , 9x 3.79 , 10x3.88 | 2.635
+        %  female: 9x 2.38 , 8x 2.54 , 7x 2.49 , 8x 2.54 , 9x 2.87 , 9x 2.99 | 3.496
+        \hline
+    \end{tabular}
+    \newline
+    \renewcommand{\arraystretch}{1}
+    \footnotesize{
+        % cheat-y way to get the footnotes left-aligned -- just have a lil table here! :)
+        \begin{tabular}{p{14.5cm}}
+            $^a$ Measurements are highly dependent on lung volume at time of
+            measurement.\cite{Hoffstein1986} These values are at 50\% of VC, typically closer to FRC
+            than TLC. Other studies provide higher-accuracy measurements, but at TLC.%
+            \cite{SheelEtAl2009} \\
+        $^b$ Calculated from airway cross-sectional area data, assuming circular cross-sections,
+            \textit{then} averaged. \\
+        $^c$ Data on this is limited; the actual mean may be quite different. \\
+        $^d$ Variability in number of alveoli is very high (stdev $\approx 180 \times 10^6$), is
+            unrelated to lung size, and density of alveoli is the same between boys and girls, so it
+            is unclear whether there are sex differences. \cite{OchsEtAl2004, Thurlbeck1982} \\
+        $^e$ Adapted from \cite{NederEtAl1999}, via unweighted average across all age groups. \\
+        \end{tabular}
+    }
 \end{table}
 
-\subsection{Clinical methods}
+\subsection{Clinical methods} \label{sec:clinical-methods}
 
 There are a number of relevant clinical methods for measuring lung function, many of which will be
 discussed in this section. Despite the clinical utiltiy however, there are certain limitations to
@@ -99,7 +154,7 @@ pulses whereas IOS uses pseudo-random noise. From this, estimates of resistance 
 lungs are made, which have correlations to diseases such as asthma and COPD.
 
 Finally, we have the imaging techniques: \textit{Magnetic resonance imaging} (MRI), \textit{computed
-tomography} (CT), and \textit{positron emission tomography} (PET). Beyond immediately-visible
+tomography} (CT), and \textit{positron emission tomography} (PET). Beyond immediately visible
 ailments (e.g. foreign objects or fluid buildup), these methods can also be used to estimate the
 ventilation of air in each voxel of the image~--~providing metrics that can quantify overall lung
 function (and highlight specific regions where function is degraded). However, these methods are
@@ -129,7 +184,7 @@ For those reasons, it is natural to turn to simulations -- in particular, comput
 order to gain insight into impact on physiology and overall function from isolated changes within
 the lungs.
 
-\subsection{Prior computational models}
+\subsection{Prior computational models} \label{sec:prior-models}
 
 This section is unfortunately brief~--~historically, computational models have been limited by the
 available resources (they still are) and data to base them on. From the beginning, simulating
@@ -139,10 +194,17 @@ reasonable assumptions can be made about the flow of air within the lungs to sim
 advancements in the speed of computers.
 
 Early models represented the lungs with just a few elastic chambers, but advancements in
-physiological data (particularly from Weibel, 1963) allowed later models to generate larger models
-of the lungs, with the size now singularly limited by computational capabilities.
+physiological data (particularly from \cite{Weibel1963}) allowed later studies to generate larger
+models of the lungs, with the size now singularly limited by computational capabilities. However,
+general models remained untouched for many years after. A brief survey of the time between shows: a
+model of individual alveolar ducts from 1974 (\cite{Paiva1974}), a couple models specific to
+multi-breath washout from 1990 and 2001 (\cite{VerbanckEtAl1990} and \cite{TawhaiHunter2001}), and a
+model of \ce{^3He} gas diffusion~--~among many others not mentioned here.
 
-More recently, models have been partially constructed with results from patient imaging (up to
-generations 6-10) with later generations generated by the parameters from Webiel (1963).
+More recently however, there was a 1-dimensional asymmetric branching model from 2012
+(\cite{HenryEtAl2012}) and a \textit{different} 1-dimensional from 2017 that this paper builds on
+(\cite{FoyEtAl2017}), using partial construction of from patient imaging (up to generations
+6-10)~--~both of which model the lungs as a whole, directly.
 
-\todo{ the ``Weibel, 1963'' above needs to actually be a reference }
+In summary: computational models of the lungs as a whole are still relatively new; in this paper we
+investigate some areas of untapped potential for these recent computational models.

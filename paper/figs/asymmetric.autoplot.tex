@@ -1,0 +1,55 @@
+% @setfileprefix(data/asymmetric/27e39fe0855e487b61352dea5361a8046716006e/)
+\pgfplotsset{
+    xtick pos=left,
+    xlabel={Time (s)},
+    xmin=4, xmax=24,
+    xtick={4,8,12,16,20,24},
+    every tick label/.append style={font=\small},
+    compat=1.3,
+    width=.8\textwidth,
+    height=.5\textwidth,
+    legend style={
+        at={(0.5,0.5)}, % adapted from https://tex.stackexchange.com/a/133878
+        nodes={scale=0.7, transform shape}, % adapted from https://tex.stackexchange.com/a/301112
+        anchor=center},
+}
+
+\begin{axis}[
+    axis y line*=left,
+    ylabel={Volume (L)},
+    ymin=0.875, ymax=1.875,
+    ytick={1.375,1.5,1.625,1.75,1.875},
+    % grid stuff must be here; not global because otherwise the top axis gets overwritten
+    minor x tick num=3,
+    xminorgrids,
+    xmajorgrids,
+    grid style=dashed,
+]
+
+% healthy (right side)
+\addplot[color=softgreen,style=thick] coordinates {
+    % @generated(fields='1,10', range=402.., stride=5, 10d@50%-28s-tanh:8.00s-4s-4s.csv)
+};
+% recovery (left side)
+\addplot[color=softred,style=thick] coordinates {
+    % @generated(fields='1,8', range=402.., stride=5, 10d@50%-28s-tanh:8.00s-4s-4s.csv)
+};
+\end{axis}
+
+\begin{axis}[
+    axis y line*=right,
+    ylabel={Flow in (L/s)},
+    ymin=-0.25, ymax=0.875,
+    ytick={-.25,-.125,0,.125,.25},
+]
+% healthy (right side)
+\addplot[color=softgreen,style=thick] coordinates {
+    % @generated(fields='1,9', range=402.., stride=5, 10d@50%-28s-tanh:8.00s-4s-4s.csv)
+};
+\addlegendentry{Right side (Healthy)}
+% recovery (left side)
+\addplot[color=softred,style=thick] coordinates {
+    % @generated(fields='1,7', range=402.., stride=5, 10d@50%-28s-tanh:8.00s-4s-4s.csv)
+};
+\addlegendentry{Left side (Constrict and recover)}
+\end{axis}

@@ -2,15 +2,19 @@
 #
 # Runs many models at various levels of constriction for long enough for it to even out
 
-from runner import bin_hash, Runner
+import base
+from runner import bin_hash, Runner, run_parallel
 from hashlib import sha1
 from pathlib import Path
 import csv
 
+TIMESTEPS = [0.01, 0.0025]
+DATADIR = 'data/constriction-stats'
+
 def main():
-    total_time = 24 # 20s to even out, +4s for a full breath cycle
-    depth = 8
-    constrictions = [i for i in range(96)]
+    total_time = 28 # 20/24s to even out, +4s for a full breath cycle
+    depth = 10
+    constrictions = [i for i in range(91)] + [-i for i in range(1,51)]
 
     hasher = sha1()
     hasher.update(bin_hash())
@@ -18,33 +22,40 @@ def main():
     template_hash = hasher.hexdigest()
 
     # Ensure that our directory is there:
-    Path('data/constriction-stats').mkdir(parents=False, exist_ok=True)
-    Path(f'data/constriction-stats/{template_hash}').mkdir(exist_ok=True)
+    Path(DATADIR).mkdir(parents=False, exist_ok=True)
+    Path(f'{DATADIR}/{template_hash}').mkdir(exist_ok=True)
 
-    print('running...')
+    runners = []
+    for timestep in TIMESTEPS:
+        for c in constrictions:
+            r_tuple = make_runner(template_hash, timestep, total_time, depth, c)
+            if r_tuple is not None:
+                runners.append(r_tuple)
 
-    count = len(constrictions)
+    print(f'running {len(runners)} trials...')
 
-    i = 0
-    for c in constrictions:
-        # Status indicator
-        print(f'{i}/{count}...\r', end='', flush=True)
-
-        run(template_hash, total_time, depth, c)
-        i += 1
+    if len(runners) != 0:
+        results = run_parallel(runners)
+        for returncode, filename in results:
+            if returncode != 0:
+                print(f'warning: trial {filename} exited with code {returncode}')
 
     print('done generating initial data')
-    print('producing summary...')
-    make_summary(template_hash, total_time, depth, constrictions, (20, 24))
+    if len(TIMESTEPS) == 1:
+        print('producing summary...')
+    else:
+        print('producing summaries...')
+    for timestep in TIMESTEPS:
+        make_summary(template_hash, timestep, total_time, depth, constrictions, (20, 24))
     print('all jobs complete.', end='\n\n')
 
-    print(f'check \'data/constriction-stats/{template_hash}/*.csv\' for results')
+    print(f'check \'{DATADIR}/{template_hash}/*.csv\' for results')
 
 TEMPLATE = """
 {{
     "config": {{
-        "branch_length_decrease": 0.75,
-        "branch_radius_decrease": 0.75,
+        "branch_length_decrease": """+str(base.BRANCH_LENGTH_DECREASE)+""",
+        "branch_radius_decrease": """+str(base.BRANCH_RADIUS_DECREASE)+""",
         "split_angle": 0.8,
         "max_depth": {depth},
         "trachea_radius": {trachea_radius}
@@ -55,9 +66,13 @@ TEMPLATE = """
 }}
 """
 
-def run(template_hash: str, total_time: float, depth: int, constriction: int) -> None:
-    filename = f'{total_time}-{depth}d@{int(constriction)}%'
-    path = f'data/constriction-stats/{template_hash}/{filename}.csv'
+def trial_filename(timestep: float, total_time: float, depth: int, constriction: int) -> str:
+    return f'{timestep}x{total_time}s-{depth}d@{constriction}%'
+
+def make_runner(template_hash: str, timestep: float, total_time: float, depth: int,
+        constriction: int) -> tuple[Runner, str] | None:
+    filename = trial_filename(timestep, total_time, depth, constriction);
+    path = f'{DATADIR}/{template_hash}/{filename}.csv'
 
     # Check if this trial has already been run
     if Path(path).exists():
@@ -66,27 +81,20 @@ def run(template_hash: str, total_time: float, depth: int, constriction: int) ->
     cons_frac = 0.01 * constriction
     fmt_args = {
         'depth': depth,
-        'trachea_radius': (1 - cons_frac) * 0.01, # trachea is 0.01 meters by default
+        'trachea_radius': (1 - cons_frac) * base.TRACHEA_RADIUS, # trachea is 0.01 meters by default
     }
     config = TEMPLATE.format_map(fmt_args)
+    return (Runner(config, total_time, path, timestep), filename)
 
-    output, exit_code = Runner(config, total_time).run()
-    with open(path, 'w+') as f:
-        f.write(output)
-
-    if exit_code != 0:
-        print(f'warning: trial {filename} exited with code {exit_code}')
-
-def make_summary(template_hash: str, total_time: float, depth: int, constrictions: list[int],
-        valid_time_range: tuple[float, float]) -> None:
+def make_summary(template_hash: str, timestep: float, total_time: float, depth: int,
+        constrictions: list[int], valid_time_range: tuple[float, float]) -> None:
     results = []
 
-    constrictions.sort()
     assert constrictions[0] == 0
 
     for c in constrictions:
-        filename = f'{total_time}-{depth}d@{c}%'
-        path = f'data/constriction-stats/{template_hash}/{filename}.csv'
+        filename = trial_filename(timestep, total_time, depth, c)
+        path = f'{DATADIR}/{template_hash}/{filename}.csv'
 
         # Read the data from this trial
         max_flow = 0
@@ -98,7 +106,7 @@ def make_summary(template_hash: str, total_time: float, depth: int, constriction
             reader = csv.DictReader(file)
             for row in reader:
                 time = float(row['time'])
-                flow = float(row['flow out'])
+                flow = float(row['flow in'])
 
                 if valid_time_range[0] <= time < valid_time_range[1]:
                     if last_pair is not None:
@@ -125,15 +133,23 @@ def make_summary(template_hash: str, total_time: float, depth: int, constriction
 
         results.append((c, max_flow, max_time, max_acceleration))
 
-    # Write the results to the summary file
-    summary_path = f'data/constriction-stats/{template_hash}/summary.csv'
-    with open(summary_path, 'w+') as f:
-        base_time = results[0][2] # shift all the base times to be relative to constriction=0%
+    base_time = results[0][2] # remember: results[0] is still 0% constriction
+    results.sort(key=lambda r: r[0]) # ... but now it might not be
 
+    # Write the results to the summary file
+    summary_path = f'{DATADIR}/{template_hash}/summary-{timestep}x{total_time}-{depth}d.csv'
+    with open(summary_path, 'w+') as f:
         f.write('constriction,max flow,max flow time,max acceleration,scaled max acceleration\n')
 
         for constriction, max_flow, max_time, max_acceleration in results:
+            # center max_time so that it's within a 2s window around base_time
+            if max_time > base_time + 2:
+                max_time -= 4
+            elif max_time < base_time - 2:
+                max_time += 4
+
             max_time -= base_time
+
             scaled = max_acceleration / max_flow
 
             f.write(f'{constriction},{max_flow:.4},{max_time:.4},{max_acceleration:.4},{scaled:.4}\n')

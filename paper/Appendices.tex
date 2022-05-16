@@ -1,0 +1,30 @@
+% Appendices.tex
+%
+% vim: set ft=tex:
+
+% helper derived from https://tex.stackexchange.com/a/252667
+\titleformat{\section}{\normalfont\large\bfseries}{Appendix \thesection:}{1em}{}
+\section{Extended equations} \label{appendix:equations}
+
+\def\plmin{P_{\text{pl}_{\text{min}}}}
+\def\plmax{P_{\text{pl}_{\text{max}}}}
+\def\plinit{P_{\text{pl}_{\text{init}}}}
+
+In \autoref{sec:simultaneous-equations}, the function controlling pleural pressure is referenced. It
+is defined here, using a minimum $\plmin$, maximum $\plmax$ and initial pressure $\plinit$. The
+period is $T$.
+
+\begin{equation}
+    P_{\text{pl}}(t_n) = M - A \cos\left(\frac{2\pi}{T} t_n + \cos^{-1}\left( \frac{M - \plinit}{A} \right)\right)
+\end{equation}
+
+\noindent where
+
+\begin{align*}
+    A &= \frac{\plmax - \plmin}{2}\hspace{1cm}&\text{(amplitude)} \\
+    M &= \frac{\plmax + \plmin}{2}\hspace{1cm}&\text{(mean)}
+\end{align*}
+
+\noindent This function has the property that~--~if the initial value is not the minimum or maximum
+value~--~it is always increasing at $t_n = 0$. If the initial value is the minimum,
+$P_{\text{pl}}(t_n)$ is not technically increasing at $t_n = 0$, but it will be at $t_n = \epsilon$.

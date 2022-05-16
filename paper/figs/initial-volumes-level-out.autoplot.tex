@@ -1,0 +1,107 @@
+% @setfileprefix(data/differ-start/4487748e5541ce2979df42fcf6a0bfac34e5d605/)
+
+\begin{axis}[
+    name=level_out,
+    align=center, title={Convergence of initial volumes with \\ \textit{unrestricted} flow},
+    xlabel={Time (s)},
+    ylabel={Volume (L)},
+    xmin=0, xmax=8,
+    ymin=0, ymax=6,
+    xtick={0,2,4,6,8},
+    ytick={0,1,2,3,4,5,6},
+    legend pos=north east,
+]
+
+% 0.5L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 0.5L-0%.csv)
+};
+% 0.75L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 0.75L-0%.csv)
+};
+% 1.0L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 1.0L-0%.csv)
+};
+% 1.25L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 1.25L-0%.csv)
+};
+% 1.5L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 1.5L-0%.csv)
+};
+% 1.75L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 1.75L-0%.csv)
+};
+% 2.0L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 2.0L-0%.csv)
+};
+% 2.25L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 2.25L-0%.csv)
+};
+% 2.5L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 2.5L-0%.csv)
+};
+% 2.75L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 2.75L-0%.csv)
+};
+% 3.25L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 3.25L-0%.csv)
+};
+% 3.5L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 3.5L-0%.csv)
+};
+% 3.75L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 3.75L-0%.csv)
+};
+% 4.0L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 4.0L-0%.csv)
+};
+% 4.25L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 4.25L-0%.csv)
+};
+% 4.5L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 4.5L-0%.csv)
+};
+% 4.75L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 4.75L-0%.csv)
+};
+% 5.0L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 5.0L-0%.csv)
+};
+% 5.25L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 5.25L-0%.csv)
+};
+% 5.5L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 5.5L-0%.csv)
+};
+% 5.75L
+\addplot[color=softsoftblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 5.75L-0%.csv)
+};
+
+% "True" volume -- initial volume of 3.0L, nearly what it should be anyways.
+%
+% This is last so that it gets written over the top of the others
+\addplot[style=thick,color=softblue] coordinates {
+    % @generated(fields='1,6', range=2.., stride=5, 3.0L-0%.csv)
+};
+
+\end{axis}
